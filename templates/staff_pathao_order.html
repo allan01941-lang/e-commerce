@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+
+{% block title %}Pathao order #{{ order.display_order_number }} | Staff dashboard{% endblock %}
+
+{% block content %}
+<section class="section admin-dashboard staff-dashboard">
+    <div class="container">
+        <div class="dashboard-header staff-pathao-header">
+            <div>
+                <span class="eyebrow">Courier fulfillment</span>
+                <h1>Pathao order #{{ order.display_order_number }}</h1>
+                <p>Review the delivery details and shipment status for this order.</p>
+            </div>
+            <div class="staff-pathao-header-actions">
+                <span class="staff-pathao-environment is-live">
+                    <span aria-hidden="true"></span>
+                    Live environment
+                </span>
+                <a href="{% url 'staff_order_detail' order.pk %}" class="btn btn-secondary">Back to order</a>
+            </div>
+        </div>
+
+        <div class="staff-pathao-layout">
+            <section class="panel-box staff-pathao-panel staff-pathao-details">
+                <div class="staff-pathao-section-heading">
+                    <div>
+                        <span class="staff-section-label">Shipment information</span>
+                        <h2>Recipient and parcel</h2>
+                    </div>
+                    <span class="staff-pathao-order-status">{{ order.get_status_display }}</span>
+                </div>
+                <p class="staff-pathao-helper">Pathao maps the delivery area from the complete address. Include the street, Thana / Upazila, and Zilla.</p>
+
+                <div class="staff-pathao-recipient">
+                    <div class="staff-pathao-avatar" aria-hidden="true">{{ order.full_name|first|upper }}</div>
+                    <div>
+                        <strong>{{ order.full_name }}</strong>
+                        <span>{{ order.phone }}</span>
+                    </div>
+                </div>
+
+                <div class="staff-pathao-address-card">
+                    <span class="staff-pathao-field-label">Delivery address</span>
+                    <strong>{{ order.address }}, {{ order.thana }}, {{ order.zilla }}</strong>
+                    
+                </div>
+
+                <div class="staff-pathao-metrics">
+                    <div><span>Items</span><strong>{{ item_quantity }} <small>units</small></strong></div>
+                    <div><span>Parcel weight</span><strong>{{ pathao_item_weight }} <small>kg</small></strong></div>
+                    <div><span>Amount to collect</span><strong>৳{{ amount_to_collect|floatformat:2 }}</strong></div>
+                </div>
+
+                <div class="staff-pathao-total-breakdown">
+                    <div><span>Items subtotal</span><strong>৳{{ order.subtotal|floatformat:2 }}</strong></div>
+                    <div><span>Shipping</span><strong>৳{{ order.shipping_charge|floatformat:2 }}</strong></div>
+                    <div><span>Discount</span><strong>− ৳{{ order.cash_discount|floatformat:2 }}</strong></div>
+                    <div class="staff-pathao-total"><span>COD amount sent to Pathao</span><strong>৳{{ amount_to_collect|floatformat:2 }}</strong></div>
+                </div>
+
+                <div class="staff-pathao-parcel-items">
+                    <div class="staff-pathao-field-label">Order contents</div>
+                    <ul>
+                        {% for item in order_items %}
+                        <li>
+                            <span>{{ item.product_name }} <small>× {{ item.quantity }}</small></span>
+                            <strong>৳{{ item.line_total|floatformat:2 }}</strong>
+                        </li>
+                        {% empty %}
+                        <li><span>No order items.</span></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="staff-pathao-payload-fields">
+                    <div><span class="staff-pathao-field-label">Merchant order ID</span><strong>{{ merchant_order_id }}</strong></div>
+                    <div><span class="staff-pathao-field-label">Special instruction</span><strong>{{ special_instruction|default:"—" }}</strong></div>
+                    <div><span class="staff-pathao-field-label">Item description sent to Pathao</span><strong>{{ item_description|default:"—" }}</strong></div>
+                </div>
+
+                <div class="staff-pathao-meta">
+                    <span>Store ID <strong>{{ pathao_store_id|default:"Auto-detected" }}</strong></span>
+                    <span>Delivery type <strong>Normal delivery</strong></span>
+                    <span>Item type <strong>Parcel</strong></span>
+                </div>
+            </section>
+
+            <aside class="panel-box staff-pathao-panel staff-pathao-action-panel">
+                <span class="staff-section-label">Pathao shipment</span>
+                {% if messages %}
+                <div class="admin-notices" role="status" aria-live="polite">
+                    {% for message in messages %}
+                    <p class="admin-notice {{ message.tags }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if order.pathao_consignment_id %}
+                <div class="staff-pathao-result-icon is-created" aria-hidden="true">✓</div>
+                <h2>Shipment created</h2>
+                <p class="staff-pathao-action-copy">Pathao accepted this shipment request. Use the consignment ID to check its progress in the Pathao merchant panel.</p>
+                <div class="staff-pathao-consignment-card">
+                    <span class="staff-pathao-field-label">Consignment ID</span>
+                    <strong>{{ order.pathao_consignment_id }}</strong>
+                </div>
+                <div class="staff-pathao-result-status">
+                    <span>Pathao status</span>
+                    <strong>{{ order.pathao_order_status|default:"Created" }}</strong>
+                </div>
+                {% if pathao_shipment.delivery_fee != None %}
+                <div class="staff-pathao-result-status">
+                    <span>Pathao delivery fee</span>
+                    <strong>৳{{ pathao_shipment.delivery_fee|floatformat:2 }}</strong>
+                </div>
+                {% endif %}
+                {% if pathao_shipment.info_error %}
+                <div class="staff-pathao-error" role="alert">
+                    <strong>Could not refresh Pathao shipment details</strong>
+                    <span>{{ pathao_shipment.info_error }}</span>
+                </div>
+                {% endif %}
+                {% elif order.pathao_error %}
+                <div class="staff-pathao-result-icon is-error" aria-hidden="true">!</div>
+                <h2>Shipment not created</h2>
+                <p class="staff-pathao-action-copy">Pathao did not accept the last request. Review the error below and correct the order details or settings before trying again.</p>
+                <div class="staff-pathao-error" role="alert">
+                    <strong>Last attempt failed</strong>
+                    <span>{{ order.pathao_error }}</span>
+                </div>
+                {% else %}
+                <div class="staff-pathao-result-icon is-ready" aria-hidden="true">P</div>
+                <h2>Review before creating</h2>
+                <p class="staff-pathao-action-copy">Check the shipment information on this page. Nothing has been sent to Pathao yet. The request will create a live shipment.</p>
+                {% endif %}
+
+                {% if order.pathao_consignment_id %}
+                <div class="staff-pathao-action-note">This order has already been submitted to Pathao.</div>
+                {% elif order.status != 'confirmed' %}
+                <p class="staff-pathao-warning">Confirm this order in the staff dashboard before creating a Pathao shipment.</p>
+                <a class="btn btn-secondary staff-pathao-action-button" href="{% url 'staff_order_detail' order.pk %}">Review order</a>
+                {% elif not pathao_configured %}
+                <p class="staff-pathao-warning">Pathao production is not configured. Add the production credentials in Site Settings. The Store ID will be detected automatically when possible.</p>
+                {% else %}
+                <p class="staff-section-label">Step 2 · Create shipment</p>
+                <form method="post" action="{% url 'staff_create_pathao_shipment' order.pk %}" class="staff-pathao-create-form">
+                    {% csrf_token %}
+                    <button class="btn btn-primary staff-pathao-action-button" type="submit">
+                        {% if order.pathao_error %}Retry Pathao order creation{% else %}Create Pathao order{% endif %}  
+                        <span aria-hidden="true">→</span>
+                    </button>
+                    <small>Order #{{ order.display_order_number }} · {{ item_quantity }} items · ৳{{ amount_to_collect|floatformat:2 }} to collect</small>
+                </form>
+                {% endif %}
+            </aside>
+        </div>
+
+        <section class="panel-box staff-pathao-panel staff-pathao-history">
+            <div class="staff-pathao-section-heading">
+                <div>
+                    <span class="staff-section-label">Courier activity</span>
+                    <h2>Shipment history</h2>
+                </div>
+                <span class="staff-order-count">{{ successful_orders|length }} shipments</span>
+            </div>
+            {% if successful_orders %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Shop order</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Consignment ID</th>
+                            <th>Pathao status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for shipment_order in successful_orders %}
+                        <tr>
+                            <td><strong>#{{ shipment_order.display_order_number }}</strong></td>
+                            <td>{{ shipment_order.updated_at|date:"M j, Y" }}</td>
+                            <td>{{ shipment_order.full_name }}<small>{{ shipment_order.phone }}</small></td>
+                            <td><span class="staff-pathao-table-consignment">{{ shipment_order.pathao_consignment_id }}</span></td>
+                            <td><span class="staff-pathao-table-status">{{ shipment_order.pathao_order_status|default:"Created" }}</span></td>
+                            <td><a class="staff-pathao-view-link" href="{% url 'staff_pathao_order' shipment_order.pk %}">View shipment <span aria-hidden="true">→</span></a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="staff-pathao-empty">
+                <span aria-hidden="true">↗</span>
+                <strong>No Pathao shipments yet</strong>
+                <p>Created shipments will appear here with their consignment IDs and current status.</p>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

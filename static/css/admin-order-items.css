@@ -1,0 +1,70 @@
+#items-group {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+#items-group .tabular,
+#items-group fieldset,
+#items-group table {
+    max-width: 100%;
+}
+
+#items-group table {
+    table-layout: fixed;
+}
+
+#items-group th.original,
+#items-group td.original {
+    width: 0;
+    padding: 0;
+}
+
+#items-group th.column-product,
+#items-group td.field-product {
+    width: 17%;
+}
+
+#items-group th.column-variant,
+#items-group td.field-variant {
+    width: 15%;
+}
+
+#items-group th.column-product_name,
+#items-group td.field-product_name {
+    width: 17%;
+}
+
+#items-group th.column-quantity,
+#items-group td.field-quantity {
+    width: 7%;
+}
+
+#items-group th.column-unit_price,
+#items-group td.field-unit_price,
+#items-group th.column-line_total,
+#items-group td.field-line_total {
+    width: 10%;
+}
+
+#items-group th.column-selected_size,
+#items-group td.field-selected_size,
+#items-group th.column-selected_color,
+#items-group td.field-selected_color {
+    width: 9%;
+}
+
+#items-group th:last-child,
+#items-group td.delete {
+    width: 6%;
+}
+
+#items-group td select,
+#items-group td input:not([type="checkbox"]) {
+    box-sizing: border-box;
+    max-width: 100%;
+    width: 100%;
+}
+
+#items-group td input[type="number"] {
+    min-width: 4.5rem;
+}

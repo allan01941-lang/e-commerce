@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Order placed | BDBazaar{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="empty-shop-state success-state">
+            <h3>Order placed successfully!</h3>
+            <p>Your order #{{ order.pk }} has been received and is being processed.</p>
+            <p>Payment method: {{ order.get_payment_method_display }}</p>
+            {% for item in order.items.all %}
+            <p>{{ item.product_name }}{% if item.selected_size %} · Size: {{ item.selected_size }}{% endif %}{% if item.selected_color %} · Color: {{ item.selected_color }}{% endif %} · Qty: {{ item.quantity }}</p>
+            {% endfor %}
+            <a href="{% url 'shop' %}" class="btn btn-primary">Continue shopping</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

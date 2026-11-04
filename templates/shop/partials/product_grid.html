@@ -1,0 +1,81 @@
+{% load static %}
+{% if products %}
+<div class="results-header">
+    <p>{{ products.paginator.count }} products</p>
+</div>
+<div class="product-grid">
+    {% for product in products %}
+    <article class="product-card">
+        <div class="product-card-image">
+            <a href="{% url 'product_detail' product.slug %}">
+                {% with product.images.all|first as product_image %}
+                {% if product_image %}
+                    <img src="{{ product_image.image.url }}" alt="{{ product.name }}" loading="lazy" decoding="async">
+                {% else %}
+                    <img src="{% static 'images/product-placeholder.svg' %}" alt="No image available for {{ product.name }}" loading="lazy" decoding="async">
+                {% endif %}
+                {% endwith %}
+            </a>
+            {% if product.discount_percentage %}
+            <span class="discount-badge">{{ product.discount_percentage }}% OFF</span>
+            {% endif %}
+            {% if product.free_shipping %}
+            <span class="product-image-badge">Free shipping</span>
+            {% endif %}
+        </div>
+        <div class="product-body">
+            <p class="product-category">{{ product.category.name }}</p>
+            <h3><a href="{% url 'product_detail' product.slug %}">{{ product.name }}</a></h3>
+           
+            {% if product.variant_sizes or product.variant_colors or product.free_shipping %}
+            <div class="product-attributes">
+                {% if product.variant_sizes %}
+                <div class="product-attribute-group">
+                    <span class="product-attribute-label">Size</span>
+                    {% for size in product.variant_sizes %}<span>{{ size }}</span>{% endfor %}
+                </div>
+                {% endif %}
+                {% if product.variant_colors %}
+                <div class="product-attribute-group">
+                    <span class="product-attribute-label">Color</span>
+                    {% for color in product.variant_colors %}<span>{{ color }}</span>{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            <div class="product-meta">
+                <strong>From ৳{{ product.starting_price }}</strong>
+                {% if product.starting_compare_at_price %}
+                    <span>৳{{ product.starting_compare_at_price }}</span>
+                {% endif %}
+            </div>
+            {% if product.variant_sizes|length > 1 or product.variant_colors|length > 1 %}
+            <a href="{% url 'product_detail' product.slug %}" class="btn btn-primary btn-block">Choose option</a>
+            {% else %}
+            <form method="post" action="{% url 'buy_now' product.slug %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-block">Order now</button>
+            </form>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</div>
+
+<div class="pagination">
+    {% if products.has_previous %}
+        <a data-shop-page href="?page={{ products.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a>
+    {% endif %}
+
+    <span>Page {{ products.number }} of {{ products.paginator.num_pages }}</span>
+
+    {% if products.has_next %}
+        <a data-shop-page href="?page={{ products.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+    {% endif %}
+</div>
+{% else %}
+<div class="empty-shop-state">
+    <h3>No products matched your filters.</h3>
+    <p>Try resetting the filters or broadening your search.</p>
+</div>
+{% endif %}

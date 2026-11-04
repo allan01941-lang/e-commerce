@@ -1,0 +1,615 @@
+{% extends 'base.html' %}
+
+{% block title %}Staff dashboard | BDBazaar{% endblock %}
+
+{% block content %}
+<section class="section admin-dashboard staff-dashboard">
+    <div class="container">
+        <div class="dashboard-header">
+            <div>
+                <span class="eyebrow">Order fulfillment</span>
+                <h1>Staff dashboard</h1>
+                <p>View orders and update their status.</p>
+            </div>
+            <div class="staff-dashboard-header-actions">
+                <form method="post" action="{% url 'staff_start_pathao_status_sync' %}">
+                    {% csrf_token %}
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                        {% if not pathao_status_sync_enabled or active_pathao_status_sync %}disabled{% endif %}
+                    >
+                        {% if active_pathao_status_sync %}Pathao sync running{% else %}Sync Pathao statuses now{% endif %}
+                    </button>
+                </form>
+                <a href="{% url 'staff_inventory' %}" class="btn btn-secondary">Inventory &amp; restock</a>
+            </div>
+        </div>
+
+        {% if not pathao_status_sync_enabled %}
+        <p class="staff-pathao-sync-help">Configure Pathao credentials in Site Settings to sync shipment statuses.</p>
+        {% elif not active_pathao_status_sync and not pending_pathao_shipment_count %}
+        <p class="staff-pathao-sync-help">No pending Pathao shipments to sync right now.</p>
+        {% endif %}
+
+        {% if messages %}
+        <div class="admin-notices" role="status" aria-live="polite">
+            {% for message in messages %}
+            <p class="admin-notice {{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+        <script>
+            document.querySelectorAll('.admin-notice').forEach(function (notice) {
+                if (!notice.textContent.includes('Configure the Facebook Pixel ID')) return;
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 2000);
+            });
+        </script>
+        {% endif %}
+
+        {% if active_pathao_status_sync %}
+        <div class="panel-box staff-pathao-sync-notice" role="status" aria-live="polite">
+            <strong>Pathao status sync {{ active_pathao_status_sync.get_status_display|lower }}</strong>
+            <span>{{ active_pathao_status_sync.checked_shipments }} of {{ active_pathao_status_sync.total_shipments }} shipments checked;
+                {{ active_pathao_status_sync.failed_shipments }} failed.</span>
+            <small>Shipments are checked one at a time. Refresh this page to see progress.</small>
+        </div>
+        {% elif latest_pathao_status_sync %}
+        <div class="panel-box staff-pathao-sync-notice" role="status">
+            <strong>Latest Pathao status sync: {{ latest_pathao_status_sync.get_status_display }}</strong>
+            <span>{{ latest_pathao_status_sync.checked_shipments }} of {{ latest_pathao_status_sync.total_shipments }} shipments checked;
+                {{ latest_pathao_status_sync.failed_shipments }} failed.</span>
+            {% if latest_pathao_status_sync.error_summary %}
+            <small>{{ latest_pathao_status_sync.error_summary|linebreaksbr }}</small>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="panel-box full-panel staff-orders-panel">
+            <div class="panel-head">
+                <div>
+                    <span class="staff-section-label">Order management</span>
+                    <h2>Orders</h2>
+                </div>
+                <span class="staff-order-count">{{ orders.paginator.count }} orders</span>
+            </div>
+            <form method="get" action="{% url 'staff_dashboard' %}" class="staff-order-filters">
+                <div class="staff-filter-field">
+                    <label for="{{ filter_form.start_date.id_for_label }}">From date</label>
+                    {{ filter_form.start_date }}
+                </div>
+                <div class="staff-filter-field">
+                    <label for="{{ filter_form.end_date.id_for_label }}">To date</label>
+                    {{ filter_form.end_date }}
+                </div>
+                <div class="staff-filter-field">
+                    <label for="{{ filter_form.status.id_for_label }}">Status</label>
+                    {{ filter_form.status }}
+                </div>
+                {% for error in filter_form.non_field_errors %}
+                <p class="staff-filter-error" role="alert">{{ error }}</p>
+                {% endfor %}
+                {% for field in filter_form %}
+                    {% for error in field.errors %}
+                    <p class="staff-filter-error" role="alert">{{ error }}</p>
+                    {% endfor %}
+                {% endfor %}
+                <div class="staff-filter-actions">
+                    <button type="submit" class="btn btn-secondary">Apply filters</button>
+                    <button type="submit" formaction="{% url 'staff_export_orders' %}" class="btn btn-primary">Download Excel</button>
+                    <a href="{% url 'staff_dashboard' %}" class="btn btn-secondary">Clear</a>
+                </div>
+            </form>
+            <div class="table-wrap">
+                <table>
+                    <colgroup>
+                        <col class="staff-order-col-number">
+                        <col class="staff-order-col-date">
+                        <col class="staff-order-col-customer">
+                        <col class="staff-order-col-phone">
+                        <col class="staff-order-col-address">
+                        <col class="staff-order-col-items">
+                        <col class="staff-order-col-quantity">
+                        <col class="staff-order-col-shipping">
+                        <col class="staff-order-col-total">
+                        <col class="staff-order-col-pathao">
+                        <col class="staff-order-col-status">
+                        <col class="staff-order-col-action">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Order Number</th>
+                            <th>Date</th>
+                            <th>Customer name</th>
+                            <th>Phone</th>
+                            <th>Delivery address</th>
+                            <th>Order Item</th>
+                            <th>Product Qty</th>
+                            <th>Shipping Cost</th>
+                            <th>Order Total</th>
+                            <th>Pathao Status</th>
+                            <th>Order Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr
+                            data-inside-shipping-rate="{{ shipping_rates.inside_dhaka }}"
+                            data-outside-shipping-rate="{{ shipping_rates.outside_dhaka }}"
+                            data-order-subtotal="{{ order.subtotal }}"
+                            data-order-discount="{{ order.cash_discount }}"
+                        >
+                            <td><strong>#{{ order.display_order_number }}</strong></td>
+                            <td>{{ order.created_at|date:"M j, Y" }}</td>
+                            <td>
+                                <input class="staff-order-field" type="text" name="full_name" value="{{ order.full_name }}" form="order-update-{{ order.pk }}" aria-label="Customer name for order #{{ order.display_order_number }}" required>
+                            </td>
+                            <td>
+                                <input class="staff-order-field" type="tel" name="phone" value="{{ order.phone }}" form="order-update-{{ order.pk }}" aria-label="Phone for order #{{ order.display_order_number }}" readonly aria-readonly="true" required>
+                            </td>
+                            <td class="staff-order-address-cell">
+                                <input class="staff-order-field" type="text" name="address" value="{{ order.address }}" form="order-update-{{ order.pk }}" aria-label="Street address for order #{{ order.display_order_number }}" placeholder="Street address" required>
+                                <div>
+                                    <input class="staff-order-field" type="text" name="thana" value="{{ order.thana }}" form="order-update-{{ order.pk }}" aria-label="Thana for order #{{ order.display_order_number }}" placeholder="Thana">
+                                    <input class="staff-order-field" type="text" name="zilla" value="{{ order.zilla }}" form="order-update-{{ order.pk }}" aria-label="Zilla for order #{{ order.display_order_number }}" placeholder="Zilla">
+                                </div>
+                            </td>
+                            <td class="order-item-lines">
+                                {% for item in order.items.all %}
+                                    <div class="staff-order-item-editor">
+                                        <select class="staff-order-field staff-product-select" name="item_product_{{ item.pk }}" form="order-update-{{ order.pk }}" data-item-id="{{ item.pk }}" aria-label="Product for order item {{ item.pk }} in order #{{ order.display_order_number }}" required>
+                                            {% for staff_product in staff_products %}
+                                            <option value="{{ staff_product.pk }}" {% if staff_product.pk == item.product_id %}selected{% endif %}>{{ staff_product.name }} — ৳{{ staff_product.starting_price|floatformat:2 }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <label class="staff-size-option"{% if item.product.variant_sizes|length <= 1 %} hidden{% endif %}>
+                                            Size
+                                            <select class="staff-order-field staff-size-select" name="item_size_{{ item.pk }}" form="order-update-{{ order.pk }}" aria-label="Size of {{ item.product_name }} in order #{{ order.display_order_number }}"{% if item.product.variant_sizes|length <= 1 %} disabled{% else %} required{% endif %}>
+                                                {% if item.selected_size %}<option value="{{ item.selected_size }}" selected>{{ item.selected_size }}</option>{% else %}<option value="" selected>—</option>{% endif %}
+                                                {% for option in item.product.variant_sizes %}
+                                                    {% if option != item.selected_size %}
+                                                    <option value="{{ option }}">{{ option }}</option>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label class="staff-color-option"{% if item.product.variant_colors|length <= 1 %} hidden{% endif %}>
+                                            Color
+                                            <select class="staff-order-field staff-color-select" name="item_color_{{ item.pk }}" form="order-update-{{ order.pk }}" aria-label="Color of {{ item.product_name }} in order #{{ order.display_order_number }}"{% if item.product.variant_colors|length <= 1 %} disabled{% else %} required{% endif %}>
+                                                {% if item.selected_color %}<option value="{{ item.selected_color }}" selected>{{ item.selected_color }}</option>{% else %}<option value="" selected>—</option>{% endif %}
+                                                {% for option in item.product.variant_colors %}
+                                                    {% if option != item.selected_color %}
+                                                    <option value="{{ option }}">{{ option }}</option>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                            <input
+                                                type="hidden"
+                                                name="item_free_shipping_{{ item.pk }}"
+                                                value="false"
+                                                form="order-update-{{ order.pk }}"
+                                            >
+                                            <div class="staff-order-shipping-options">
+                                                <label class="staff-free-shipping-option">
+                                                    <input
+                                                        class="staff-order-field"
+                                                        type="checkbox"
+                                                        name="item_free_shipping_{{ item.pk }}"
+                                                        value="true"
+                                                        form="order-update-{{ order.pk }}"
+                                                        {% if item.product.free_shipping %}checked{% endif %}
+                                                    >
+                                                    <span>Free shipping</span>
+                                                </label>
+                                                {% if forloop.first %}
+                                                <select class="staff-order-field staff-delivery-area-select" name="delivery_area" form="order-update-{{ order.pk }}" aria-label="Delivery area for order #{{ order.display_order_number }}">
+                                                    {% for value, label in delivery_area_choices %}
+                                                    <option value="{{ value }}" {% if value == order.delivery_area %}selected{% endif %}>{{ label }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                {% endif %}
+                                            </div>
+                                    </div>
+                                {% empty %}
+                                    <div class="staff-order-item-editor">
+                                        <span>—</span>
+                                        <select class="staff-order-field staff-delivery-area-select" name="delivery_area" form="order-update-{{ order.pk }}" aria-label="Delivery area for order #{{ order.display_order_number }}">
+                                            {% for value, label in delivery_area_choices %}
+                                            <option value="{{ value }}" {% if value == order.delivery_area %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                {% endfor %}
+                            </td>
+                            <td class="order-item-lines">
+                                {% for item in order.items.all %}
+                                    <div>
+                                        <input
+                                            class="staff-order-field staff-quantity-field"
+                                            type="number"
+                                            name="item_quantity_{{ item.pk }}"
+                                            value="{{ item.quantity }}"
+                                            data-unit-price="{{ item.unit_price }}"
+                                            min="1"
+                                            step="1"
+                                            inputmode="numeric"
+                                            form="order-update-{{ order.pk }}"
+                                            aria-label="Quantity of {{ item.product_name }} in order #{{ order.display_order_number }}"
+                                            required
+                                        >
+                                    </div>
+                                {% empty %}
+                                    <div>—</div>
+                                {% endfor %}
+                            </td>
+                       
+                        
+                            <td class="staff-money-column">
+                                ৳<span class="staff-shipping-cost">{{ order.shipping_charge|floatformat:2 }}</span>
+                            </td>
+                            <td class="staff-money-column staff-order-total">
+                                ৳<span class="staff-order-total-amount">{{ order.total|floatformat:2 }}</span>
+                            </td>
+                            <td class="staff-pathao-status-cell">
+                                {% if order.pathao_shipment %}
+                                <a class="staff-pathao-status-badge status-{{ order.pathao_shipment.order_status|slugify }}" href="{% url 'staff_pathao_order' order.pk %}" aria-label="Pathao status {{ order.pathao_shipment.order_status }} for order #{{ order.display_order_number }}">
+                                    {{ order.pathao_shipment.order_status|default:"Created" }}
+                                </a>
+                                {% elif order.pathao_consignment_id %}
+                                <a class="staff-pathao-status-badge" href="{% url 'staff_pathao_order' order.pk %}" aria-label="Pathao shipment created for order #{{ order.display_order_number }}">
+                                    {{ order.pathao_order_status|default:"Created" }}
+                                </a>
+                                {% else %}
+                                <span class="staff-pathao-status-empty">Not sent</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form id="order-update-{{ order.pk }}" method="post" action="{% url 'update_order_status' order.pk %}" class="status-update-form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="page" value="{{ orders.number }}">
+                                    <input type="hidden" name="email" value="{{ order.email|default_if_none:'' }}">
+                                    <input type="hidden" name="dashboard_autosave" value="1">
+                                    <div class="status-control">
+                                        <select class="staff-order-field staff-status-select status-{{ order.status }}" name="status" aria-label="Update order status for order #{{ order.display_order_number }}">
+                                            {% for value, label in status_choices %}
+                                            <option value="{{ value }}" {% if value == order.status %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <span class="staff-order-save-status" role="status" aria-live="polite"></span>
+                                    </div>
+                                </form>
+                            </td>
+                            <td class="staff-order-action-cell">
+                                <div class="staff-order-actions">
+                                    <a class="btn btn-secondary compact-btn staff-order-details-btn" href="{% url 'staff_order_detail' order.pk %}?page={{ orders.number }}" title="View order details" aria-label="View details for order #{{ order.display_order_number }}">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                            <path d="M12 5c-5.5 0-9.5 5-10.5 7 1 2 5 7 10.5 7s9.5-5 10.5-7c-1-2-5-7-10.5-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" fill="currentColor" stroke="none"></path>
+                                        </svg>
+                                    </a>
+                                    <a class="btn btn-secondary compact-btn staff-order-details-btn staff-call-log-btn" href="{% url 'staff_call_log' order.pk %}" title="{% if order.latest_call_note %}Last call: {{ order.latest_call_note }} — {{ order.latest_call_staff|default:'Former staff member' }} · {{ order.latest_call_at|date:'M j, Y, P' }}{% else %}No call logs yet. Add or view call notes for {{ order.full_name }}{% endif %}" aria-label="Add or view call notes for order #{{ order.display_order_number }}">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                            <path d="m6.6 2 3.1-.1 1.5 5.1-2.1 1.8a15.5 15.5 0 0 0 6.1 6.1l1.8-2.1 5.1 1.5-.1 3.1a3 3 0 0 1-3.2 2.8C10 19.5 4.5 14 3.8 5.2A3 3 0 0 1 6.6 2Z" fill="currentColor" stroke="none"></path>
+                                        </svg>
+                                        <span class="staff-call-log-count" aria-hidden="true">{{ order.call_log_count }}</span>
+                                    </a>
+                                    <a class="btn btn-secondary compact-btn staff-order-details-btn staff-pathao-order-btn" href="{% url 'staff_pathao_order' order.pk %}" data-has-shipment="{% if order.pathao_consignment_id %}true{% else %}false{% endif %}" title="{% if order.pathao_consignment_id %}View Pathao shipment{% else %}Review Pathao shipment details{% endif %}" aria-label="{% if order.pathao_consignment_id %}View Pathao shipment for order #{{ order.display_order_number }}{% else %}Review Pathao shipment details for confirmed order #{{ order.display_order_number }}{% endif %}" {% if order.status != 'confirmed' and not order.pathao_consignment_id %}hidden{% endif %}>
+                                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                            <path d="m3 7 9-4 9 4-9 4-9-4Zm0 0v10l9 4 9-4V7M12 11v10m-4-16 9 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+                                        </svg>
+                                        <span>{% if order.pathao_consignment_id %}View Pathao{% else %}P{% endif %}</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="12">No orders yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if orders.has_other_pages %}
+            <nav class="staff-pagination" aria-label="Order pages">
+                {% if orders.has_previous %}
+                <a class="btn btn-secondary compact-btn" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ orders.previous_page_number }}">Previous</a>
+                {% endif %}
+                <span>Page {{ orders.number }} of {{ orders.paginator.num_pages }}</span>
+                {% if orders.has_next %}
+                <a class="btn btn-secondary compact-btn" href="?{% if filter_query %}{{ filter_query }}&amp;{% endif %}page={{ orders.next_page_number }}">Next</a>
+                {% endif %}
+            </nav>
+            {% endif %}
+        </div>
+
+    </div>
+</section>
+{{ product_catalog|json_script:"staff-product-catalog" }}
+<script>
+    const staffStatusClasses = [
+        'status-pending',
+        'status-confirmed',
+        'status-processing',
+        'status-shipped',
+        'status-delivered',
+        'status-returned',
+        'status-cancelled',
+    ];
+    document.querySelectorAll('.staff-status-select').forEach(function (select) {
+        select.addEventListener('change', function () {
+            select.classList.remove(...staffStatusClasses);
+            select.classList.add('status-' + select.value);
+        });
+    });
+
+    const staffProductCatalog = JSON.parse(document.getElementById('staff-product-catalog').textContent);
+    const staffProductById = new Map(staffProductCatalog.map(function (product) {
+        return [String(product.id), product];
+    }));
+
+    function updateVariantOptions(select, options, selectedValue) {
+        select.replaceChildren();
+        const hasMultipleOptions = options.length > 1;
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '—';
+        if (hasMultipleOptions || options.length === 0) {
+            select.appendChild(emptyOption);
+        }
+        options.forEach(function (name) {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+        if (options.length === 1) {
+            select.value = options[0];
+        } else if (options.includes(selectedValue)) {
+            select.value = selectedValue;
+        } else if (options.length > 1) {
+            select.value = options[0];
+        }
+        select.disabled = !hasMultipleOptions;
+        select.required = hasMultipleOptions;
+        select.parentElement.hidden = options.length <= 1;
+    }
+
+    function updateOrderAmounts(row) {
+        const itemSelectors = row.querySelectorAll('.staff-product-select');
+        let subtotal = 0;
+        let hasFreeShipping = false;
+
+        itemSelectors.forEach(function (productField) {
+            const itemId = productField.dataset.itemId;
+            const product = staffProductById.get(productField.value);
+            const quantityField = row.querySelector('[name="item_quantity_' + itemId + '"]');
+            const sizeField = row.querySelector('[name="item_size_' + itemId + '"]');
+            const colorField = row.querySelector('[name="item_color_' + itemId + '"]');
+            if (!product || !quantityField) return;
+
+            const price = Number(quantityField.dataset.unitPrice || 0);
+            subtotal += price * (Number(quantityField.value) || 0);
+
+            const freeShippingField = row.querySelector(
+                'input[type="checkbox"][name="item_free_shipping_' + itemId + '"]'
+            );
+            if (freeShippingField && freeShippingField.checked) {
+                hasFreeShipping = true;
+            }
+        });
+
+        const deliveryArea = row.querySelector('[name="delivery_area"]');
+        const shippingRate = deliveryArea && deliveryArea.value === 'inside_dhaka'
+            ? Number(row.dataset.insideShippingRate)
+            : Number(row.dataset.outsideShippingRate);
+        const shipping = hasFreeShipping ? 0 : shippingRate;
+        const storedSubtotal = Number(row.dataset.orderSubtotal || 0);
+        const calculatedSubtotal = itemSelectors.length ? subtotal : storedSubtotal;
+        const discount = Number(row.dataset.orderDiscount || 0);
+
+        row.querySelector('.staff-shipping-cost').textContent = shipping.toFixed(2);
+        row.querySelector('.staff-order-total-amount').textContent =
+            (calculatedSubtotal + shipping - discount).toFixed(2);
+    }
+
+    function updateItemVariantPrice(row, productField) {
+        const itemId = productField.dataset.itemId;
+        const product = staffProductById.get(productField.value);
+        const quantityField = row.querySelector('[name="item_quantity_' + itemId + '"]');
+        const sizeField = row.querySelector('[name="item_size_' + itemId + '"]');
+        const colorField = row.querySelector('[name="item_color_' + itemId + '"]');
+        if (!product || !quantityField || !sizeField || !colorField) return;
+
+        const matchingVariant = product.variants.find(function (variant) {
+            return variant.size === sizeField.value && variant.color === colorField.value;
+        });
+        if (matchingVariant) {
+            quantityField.dataset.unitPrice = matchingVariant.price;
+        }
+    }
+
+    function updateCompatibleVariantOptions(row, optionField) {
+        const itemId = optionField.name.match(/\d+$/)?.[0];
+        const productField = row.querySelector(
+            '.staff-product-select[data-item-id="' + itemId + '"]'
+        );
+        const product = productField && staffProductById.get(productField.value);
+        if (!product) return;
+
+        const sizeField = row.querySelector('[name="item_size_' + itemId + '"]');
+        const colorField = row.querySelector('[name="item_color_' + itemId + '"]');
+        if (!sizeField || !colorField) return;
+
+        if (optionField.classList.contains('staff-size-select')) {
+            const compatibleColors = [...new Set(product.variants
+                .filter(function (variant) {
+                    return !sizeField.value || variant.size === sizeField.value;
+                })
+                .map(function (variant) { return variant.color; }))];
+            updateVariantOptions(colorField, compatibleColors, colorField.value);
+        } else {
+            const compatibleSizes = [...new Set(product.variants
+                .filter(function (variant) {
+                    return !colorField.value || variant.color === colorField.value;
+                })
+                .map(function (variant) { return variant.size; }))];
+            updateVariantOptions(sizeField, compatibleSizes, sizeField.value);
+        }
+
+        updateItemVariantPrice(row, productField);
+    }
+
+    document.querySelectorAll('.staff-orders-panel tbody tr').forEach(function (row) {
+        const shippingCost = row.querySelector('.staff-shipping-cost');
+        const orderTotal = row.querySelector('.staff-order-total-amount');
+        if (!shippingCost || !orderTotal) return;
+        if (!row.dataset.orderSubtotal) {
+            row.dataset.orderSubtotal = String(
+                Number(orderTotal.textContent.replace(/[^\d.]/g, ''))
+                - Number(shippingCost.textContent.replace(/[^\d.]/g, ''))
+            );
+        }
+
+        const productFields = row.querySelectorAll('.staff-product-select');
+
+        productFields.forEach(function (productField) {
+            productField.addEventListener('change', function () {
+                const itemId = productField.dataset.itemId;
+                const product = staffProductById.get(productField.value);
+                const sizeField = row.querySelector('[name="item_size_' + itemId + '"]');
+                const colorField = row.querySelector('[name="item_color_' + itemId + '"]');
+                const freeShippingField = row.querySelector('input[type="checkbox"][name="item_free_shipping_' + itemId + '"]');
+                if (!product || !sizeField || !colorField) return;
+
+                const selectedSize = sizeField.value;
+                const selectedColor = colorField.value;
+                updateVariantOptions(sizeField, product.sizes, selectedSize);
+                updateVariantOptions(colorField, product.colors, selectedColor);
+                const matchingVariant = product.variants.find(function (variant) {
+                    return variant.size === sizeField.value && variant.color === colorField.value;
+                }) || product.variants[0];
+                if (matchingVariant) {
+                    sizeField.value = matchingVariant.size;
+                    colorField.value = matchingVariant.color;
+                }
+                if (freeShippingField) freeShippingField.checked = product.free_shipping;
+                updateItemVariantPrice(row, productField);
+                updateOrderAmounts(row);
+            });
+        });
+
+        row.querySelectorAll(
+            '.staff-quantity-field, .staff-size-select, .staff-color-select, ' +
+            '[name="delivery_area"], .staff-free-shipping-option input[type="checkbox"]'
+        ).forEach(function (field) {
+            field.addEventListener('change', function () {
+                if (field.classList.contains('staff-size-select')
+                    || field.classList.contains('staff-color-select')) {
+                    updateCompatibleVariantOptions(row, field);
+                }
+                updateOrderAmounts(row);
+            });
+            field.addEventListener('input', function () {
+                updateOrderAmounts(row);
+            });
+        });
+
+        const updateForm = row.querySelector('.status-update-form');
+        const saveStatus = row.querySelector('.staff-order-save-status');
+        let saveTimer;
+        let isSaving = false;
+        let saveQueued = false;
+
+        function saveOrder() {
+            window.clearTimeout(saveTimer);
+            if (!updateForm.reportValidity()) {
+                saveStatus.textContent = 'Check required fields';
+                saveStatus.classList.add('has-error');
+                return;
+            }
+            if (isSaving) {
+                saveQueued = true;
+                return;
+            }
+
+            isSaving = true;
+            saveStatus.textContent = 'Saving…';
+            saveStatus.classList.remove('has-error');
+            fetch(updateForm.action, {
+                method: 'POST',
+                body: new FormData(updateForm),
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                credentials: 'same-origin'
+            })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok) throw new Error(data.error || 'Could not save order changes.');
+                    return data;
+                });
+            })
+            .then(function (data) {
+                row.dataset.orderSubtotal = data.subtotal;
+                row.dataset.orderDiscount = data.cash_discount;
+                const pathaoLink = row.querySelector('.staff-pathao-order-btn');
+                if (pathaoLink) {
+                    pathaoLink.hidden = data.status !== 'confirmed'
+                        && pathaoLink.dataset.hasShipment !== 'true';
+                }
+                row.querySelector('.staff-shipping-cost').textContent =
+                    Number(data.shipping_charge).toFixed(2);
+                row.querySelector('.staff-order-total-amount').textContent =
+                    Number(data.total).toFixed(2);
+                saveStatus.textContent = data.warning
+                    ? 'Saved. ' + data.warning
+                    : 'Saved';
+                if (data.warning) {
+                    saveStatus.classList.add('has-error');
+                    if (data.warning.includes('Configure the Facebook Pixel ID')) {
+                        window.setTimeout(function () {
+                            window.location.reload();
+                        }, 2000);
+                    }
+                }
+            })
+            .catch(function (error) {
+                saveStatus.textContent = 'Save failed: ' + error.message;
+                saveStatus.classList.add('has-error');
+            })
+            .finally(function () {
+                isSaving = false;
+                if (saveQueued) {
+                    saveQueued = false;
+                    saveOrder();
+                }
+            });
+        }
+
+        function queueOrderSave(immediate) {
+            window.clearTimeout(saveTimer);
+            if (immediate) {
+                saveOrder();
+            } else {
+                saveTimer = window.setTimeout(saveOrder, 600);
+            }
+        }
+
+        row.querySelectorAll('.staff-order-field').forEach(function (field) {
+            field.addEventListener('change', function () {
+                queueOrderSave(true);
+            });
+            if (field.matches('input[type="text"], input[type="tel"], input[type="number"]')) {
+                field.addEventListener('input', function () {
+                    queueOrderSave(false);
+                });
+            }
+        });
+        updateForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            saveOrder();
+        });
+    });
+</script>
+{% endblock %}

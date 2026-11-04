@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+{% if banners %}
+<section class="hero-section hero-section-banner">
+    <div class="banner-slider" aria-label="Promotional banner slider">
+        {% for banner in banners %}
+        <div class="banner-slide{% if forloop.first %} active{% endif %}">
+            {% if banner.image %}
+                    <img src="{{ banner.image.url }}" alt="{{ banner.title }}" {% if forloop.first %}fetchpriority="high" decoding="async"{% else %}loading="lazy" decoding="async"{% endif %} class="banner-image">
+            {% endif %}
+            <div class="banner-overlay">
+                    <div class="container banner-content">
+                        <span class="eyebrow">Fresh offers for Bangladesh</span>
+                        <h1>{{ banner.title }}</h1>
+                        {% if banner.subtitle %}<p>{{ banner.subtitle }}</p>{% endif %}
+                        {% if banner.button_text %}
+                            <div class="cta-row">
+                                <a href="{{ banner.button_url }}" class="btn btn-primary" style="background: {{ site_settings.accent_color|default:'#1d4ed8' }};">{{ banner.button_text }}</a>
+                            </div>
+                        {% endif %}
+                    </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% else %}
+<section class="hero-section">
+    <div class="container hero-grid">
+        <div class="hero-copy">
+            <span class="eyebrow">Fresh offers for Bangladesh</span>
+            <h1>Smart shopping for everyday life.</h1>
+            <p>Discover trending essentials, home upgrades, and lifestyle products with secure payment methods built for Bangladesh.</p>
+            <div class="cta-row">
+                    <a href="{% url 'shop' %}" class="btn btn-primary" style="background: {{ site_settings.accent_color|default:'#1d4ed8' }};">Shop now</a>
+                    <a href="{% url 'categories' %}" class="btn btn-secondary">View categories</a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="promo-card">
+                    <span>Featured deal</span>
+                    <h2>Up to 40% off</h2>
+                    <p>On selected products.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<section class="section">
+    <div class="container">
+        <div class="section-heading">
+            <h2>Shop by category</h2>
+            <a href="{% url 'categories' %}">Browse all</a>
+        </div>
+
+        <div class="category-row home-category-row">
+            {% for category in categories %}
+            <a href="{% url 'shop' %}?category={{ category.slug }}" class="category-card">
+                {% if category.image %}
+                    <img src="{{ category.image.url }}" alt="{{ category.name }}" loading="lazy" decoding="async">
+                {% else %}
+                    <img src="{% static 'images/category-placeholder.svg' %}" alt="Default category image for {{ category.name }}" loading="lazy" decoding="async">
+                {% endif %}
+                <span class="home-category-copy">
+                    <strong>{{ category.name }}</strong>
+                    <small>{{ category.product_count }} item{{ category.product_count|pluralize }}</small>
+                </span>
+            </a>
+            {% empty %}
+            <p class="empty-state">Categories will appear here once you add products in the admin.</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="section section-soft">
+    <div class="container">
+        <div class="section-heading">
+            <h2>New products</h2>
+            <a href="{% url 'shop' %}?sort=newest">See more</a>
+        </div>
+
+        <div class="product-grid home-product-grid">
+            {% for product in newest_products %}
+            <article class="product-card">
+                <div class="product-card-image">
+                    <a href="{% url 'product_detail' product.slug %}">
+                        {% with product.images.all|first as product_image %}
+                        {% if product_image %}
+                            <img src="{{ product_image.image.url }}" alt="{{ product.name }}" loading="lazy" decoding="async">
+                        {% else %}
+                            <img src="{% static 'images/product-placeholder.svg' %}" alt="No image available for {{ product.name }}" loading="lazy" decoding="async">
+                        {% endif %}
+                        {% endwith %}
+                    </a>
+                    {% if product.discount_percentage %}
+                    <span class="discount-badge">{{ product.discount_percentage }}% OFF</span>
+                    {% endif %}
+                </div>
+                <div class="product-body">
+                    <p class="product-category">{{ product.category.name }}</p>
+                    <h3><a href="{% url 'product_detail' product.slug %}">{{ product.name }}</a></h3>
+                  
+                    <div class="product-meta">
+                        <strong>From ৳{{ product.starting_price }}</strong>
+                        {% if product.starting_compare_at_price %}
+                            <span>৳{{ product.starting_compare_at_price }}</span>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{% url 'buy_now' product.slug %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-block">Order now</button>
+                    </form>
+                </div>
+            </article>
+            {% empty %}
+            <p class="empty-state">No active products yet. Add products from Django admin.</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="section-heading">
+            <h2>Most selling</h2>
+            <a href="{% url 'shop' %}?sort=most_selling">Popular picks</a>
+        </div>
+
+        <div class="product-grid home-product-grid">
+            {% for product in featured_products %}
+            <article class="product-card">
+                <div class="product-card-image">
+                    <a href="{% url 'product_detail' product.slug %}">
+                        {% with product.images.all|first as product_image %}
+                        {% if product_image %}
+                            <img src="{{ product_image.image.url }}" alt="{{ product.name }}" loading="lazy" decoding="async">
+                        {% else %}
+                            <img src="{% static 'images/product-placeholder.svg' %}" alt="No image available for {{ product.name }}" loading="lazy" decoding="async">
+                        {% endif %}
+                        {% endwith %}
+                    </a>
+                    {% if product.discount_percentage %}
+                    <span class="discount-badge">{{ product.discount_percentage }}% OFF</span>
+                    {% endif %}
+                </div>
+                <div class="product-body">
+                    <p class="product-category">{{ product.category.name }}</p>
+                    <h3><a href="{% url 'product_detail' product.slug %}">{{ product.name }}</a></h3>
+                
+                    <div class="product-meta">
+                        <strong>From ৳{{ product.starting_price }}</strong>
+                        {% if product.starting_compare_at_price %}
+                            <span>৳{{ product.starting_compare_at_price }}</span>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{% url 'buy_now' product.slug %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-block">Order now</button>
+                    </form>
+                </div>
+            </article>
+            {% empty %}
+            <p class="empty-state">Feature products will display here once you mark products as featured in admin.</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+<script>
+    const bannerSlides = document.querySelectorAll('.banner-slide');
+    if (bannerSlides.length > 1) {
+        let activeIndex = 0;
+        setInterval(() => {
+            bannerSlides[activeIndex].classList.remove('active');
+            activeIndex = (activeIndex + 1) % bannerSlides.length;
+            bannerSlides[activeIndex].classList.add('active');
+        }, 5000);
+    }
+</script>
+{% endblock %}

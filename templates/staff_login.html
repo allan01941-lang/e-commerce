@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Login | {{ site_settings.brand_name|default:'BDBazaar' }}{% endblock %}
+
+{% block content %}
+<section class="staff-login-page">
+    <div class="staff-login-shell">
+        <div class="staff-login-aside">
+            <span class="staff-login-mark" aria-hidden="true">B</span>
+            <span class="staff-login-eyebrow">Store operations</span>
+            <h1>Welcome back.</h1>
+            <p>Sign in to access your role-specific workspace and keep orders moving.</p>
+            <div class="staff-login-role-note">
+                <span aria-hidden="true">✓</span>
+                <span>Secure access for staff, owners, and administrators</span>
+            </div>
+        </div>
+
+        <div class="staff-login-card">
+            <span class="staff-login-eyebrow">Account access</span>
+            <h2>Sign in</h2>
+            <p class="staff-login-subtitle">Use your store account credentials to continue.</p>
+
+            {% if form.non_field_errors %}
+            <div class="staff-login-error" role="alert">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="post" class="staff-login-form">
+                {% csrf_token %}
+                <div class="staff-login-field">
+                    <label for="{{ form.username.id_for_label }}">Username</label>
+                    <input
+                        type="text"
+                        name="{{ form.username.html_name }}"
+                        id="{{ form.username.id_for_label }}"
+                        value="{{ form.username.value|default_if_none:'' }}"
+                        autocomplete="username"
+                        autofocus
+                        required
+                    >
+                    {% for error in form.username.errors %}<small role="alert">{{ error }}</small>{% endfor %}
+                </div>
+                <div class="staff-login-field">
+                    <label for="{{ form.password.id_for_label }}">Password</label>
+                    <input
+                        type="password"
+                        name="{{ form.password.html_name }}"
+                        id="{{ form.password.id_for_label }}"
+                        autocomplete="current-password"
+                        required
+                    >
+                    {% for error in form.password.errors %}<small role="alert">{{ error }}</small>{% endfor %}
+                </div>
+                <button type="submit" class="staff-login-submit">Sign in securely <span aria-hidden="true">→</span></button>
+            </form>
+            <a href="{% url 'home' %}" class="staff-login-back">Return to storefront</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

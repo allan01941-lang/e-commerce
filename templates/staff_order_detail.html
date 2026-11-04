@@ -1,0 +1,634 @@
+{% extends 'base.html' %}
+
+{% block title %}Order #{{ order.display_order_number }} | Staff dashboard{% endblock %}
+
+{% block content %}
+<section class="section admin-dashboard staff-dashboard">
+    <div class="container">
+        <div class="dashboard-header">
+            <div>
+                <span class="eyebrow">Order fulfillment</span>
+                <h1>Order #{{ order.display_order_number }}</h1>
+                <p>Review the complete order and update fulfillment details.</p>
+            </div>
+            <div class="dashboard-actions">
+                <a href="{% url 'staff_order_invoice' order.pk %}" class="btn btn-primary">Download Invoice</a>
+                <div class="staff-order-navigation-actions">
+                    <a href="{{ dashboard_url }}" class="btn btn-secondary">Back to staff dashboard</a>
+                </div>
+            </div>
+        </div>
+
+        {% if messages %}
+        <div class="admin-notices" role="status" aria-live="polite">
+            {% for message in messages %}
+            <p class="admin-notice {{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+       <div class="panel-box full-panel">
+    <div class="panel-head staff-order-summary-head">
+        <div>
+            <h2>Customer and payment</h2>
+            <span>Placed {{ order.created_at|date:"M j, Y, P" }}</span>
+        </div>
+        {% if order.status == 'confirmed' or order.pathao_consignment_id %}
+        <a class="btn btn-secondary staff-pathao-review-link" href="{% url 'staff_pathao_order' order.pk %}">Review Pathao order details</a>
+        {% endif %}
+    </div>
+
+    <div class="dashboard-grid four-column">
+
+        <!-- Column 1: Customer -->
+        <div class="dashboard-column">
+            <strong>Customer</strong>
+            <p>{{ order.full_name }}</p>
+
+            <strong>Phone</strong>
+            <p>{{ order.phone }}</p>
+
+            <strong>Email</strong>
+            <p>{{ order.email|default:"—" }}</p>
+
+            <strong>Delivery address</strong>
+            <p>{{ order.address }}</p>
+
+            <strong>Thana / Zilla</strong>
+            <p>{{ order.thana|default:"—" }} / {{ order.zilla|default:"—" }}</p>
+        </div>
+
+        <!-- Column 2: Payment -->
+        <div class="dashboard-column">
+            <strong>Payment method</strong>
+            <p>{{ order.get_payment_method_display }}</p>
+
+            <strong>Payment number</strong>
+            <p>{{ order.payment_number|default:"—" }}</p>
+
+            <strong>Transaction reference</strong>
+            <p>{{ order.transaction_reference|default:"—" }}</p>
+
+            <strong>Amount paid</strong>
+            <p>
+                {% if order.payment_method == "cod" %}
+                    ৳0.00
+                {% elif order.payment_amount != None %}
+                    ৳{{ order.payment_amount|floatformat:2 }}
+                {% else %}
+                    —
+                {% endif %}
+            </p>
+
+            <strong>Customer note</strong>
+            <p>{{ order.note|default:"—"|linebreaksbr }}</p>
+        </div>
+
+        <!-- Column 3: Order summary -->
+        <div class="dashboard-column">
+            <strong>Order summary</strong>
+            <p>Subtotal: <span id="staff-order-subtotal">৳{{ order.subtotal|floatformat:2 }}</span></p>
+            <p>
+                Shipping:
+                <span
+                    id="staff-order-shipping"
+                    data-inside-rate="{{ shipping_rates.inside_dhaka }}"
+                    data-outside-rate="{{ shipping_rates.outside_dhaka }}"
+                >৳{{ order.shipping_charge|floatformat:2 }}</span>
+            </p>
+            <p class="staff-cash-discount-row">
+                <label for="staff-cash-discount">Cash discount (৳)</label>
+                <input
+                    id="staff-cash-discount"
+                    class="staff-order-field"
+                    type="number"
+                    name="cash_discount"
+                    form="staff-order-update-form"
+                    value="{{ order.cash_discount|floatformat:2 }}"
+                    min="0"
+                    step="0.01"
+                    inputmode="decimal"
+                    aria-describedby="staff-cash-discount-help"
+                >
+                <span>Discount: <span id="staff-cash-discount-amount">৳{{ order.cash_discount|floatformat:2 }}</span></span>
+                
+            </p>
+            <p class="order-total">
+                <strong>Total: <span id="staff-order-total" aria-live="polite">৳{{ order.total|floatformat:2 }}</span></strong>
+            </p>
+            <p>
+                Last updated:
+                {{ order.updated_at|date:"M j, Y, P" }}
+            </p>
+        </div>
+
+        <div class="dashboard-column staff-detail-call-card">
+            <div class="staff-detail-call-heading">
+                <strong>Call log</strong>
+                <a class="btn btn-primary staff-call-customer" href="tel:{{ order.phone }}" aria-label="Call {{ order.phone }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.35 1.9.69 2.8a2 2 0 0 1-.45 2.11L8.08 9.92a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.84.57 2.8.69A2 2 0 0 1 22 16.92Z"></path>
+                </svg>
+                Call {{ order.phone }}
+            </a>
+            </div>
+                    <form method="post" action="{% url 'staff_call_log' order.pk %}" class="staff-detail-call-form">
+                {% csrf_token %}
+                <input type="hidden" name="return_to" value="detail">
+                <input type="hidden" name="page" value="{{ page }}">
+                <label for="staff-detail-call-note">Add a call note</label>
+                <textarea id="staff-detail-call-note" name="note" rows="1" maxlength="10000" placeholder="Record the call outcome or follow-up"></textarea>
+                <button type="submit" class="btn btn-primary">Add call log</button>
+            </form>
+            <div class="staff-detail-call-history" aria-label="Recent call logs">
+                {% for call_log in call_logs %}
+                <article class="staff-detail-call-entry">
+                    <p>{{ call_log.note|linebreaksbr }}</p>
+                    <small>
+                        {{ call_log.staff_member.get_full_name|default:call_log.staff_member.username|default:"Former staff member" }}
+                        · {{ call_log.created_at|date:"M j, Y, P" }}
+                    </small>
+                </article>
+                {% empty %}
+                <p class="staff-detail-call-empty">No call logs yet.</p>
+                {% endfor %}
+            </div>
+            <a class="staff-detail-call-history-link" href="{% url 'staff_call_log' order.pk %}">Open call history</a>
+        </div>
+
+    </div>
+</div>
+        <div class="panel-box full-panel staff-fulfillment-panel">
+            <div class="panel-head">
+                <div>
+                    <span class="staff-section-label">Order management</span>
+                    <h2>Order items and fulfillment</h2>
+                    <p class="staff-fulfillment-intro">Edit products, quantities, delivery details, and order status.</p>
+                </div>
+                <span class="staff-fulfillment-status">{{ order.get_status_display }}</span>
+            </div>
+            <form id="staff-order-update-form" method="post" action="{% url 'update_order_status' order.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="return_to" value="detail">
+                <input type="hidden" name="page" value="{{ page }}">
+                <div class="table-wrap staff-fulfillment-table-wrap">
+                    <table class="staff-fulfillment-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Size</th>
+                                <th>Color</th>
+                                <th>Quantity</th>
+                                <th>Unit price</th>
+                                <th>Line total</th>
+                                <th>Free shipping</th>
+                                <th>Remove</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items.all %}
+                            <tr>
+                                <td>
+                                    <select class="staff-order-field staff-product-select" name="item_product_{{ item.pk }}" data-item-id="{{ item.pk }}" aria-label="Product for order item {{ item.pk }}" required>
+                                        {% for staff_product in staff_products %}
+                                        <option value="{{ staff_product.pk }}" {% if staff_product.pk == item.product_id %}selected{% endif %}>{{ staff_product.name }} — ৳{{ staff_product.starting_price|floatformat:2 }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <label class="staff-size-option"{% if not item.product.variant_sizes %} hidden{% endif %}>
+                                    <select class="staff-order-field staff-size-select" name="item_size_{{ item.pk }}" aria-label="Size of {{ item.product_name }}"{% if item.product.variant_sizes|length <= 1 %} disabled{% else %} required{% endif %}>
+                                        {% if item.selected_size %}<option value="{{ item.selected_size }}" selected>{{ item.selected_size }}</option>{% else %}<option value="" selected>—</option>{% endif %}
+                                        {% for option in item.product.variant_sizes %}
+                                            {% if option != item.selected_size %}
+                                            <option value="{{ option }}">{{ option }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="staff-color-option"{% if not item.product.variant_colors %} hidden{% endif %}>
+                                    <select class="staff-order-field staff-color-select" name="item_color_{{ item.pk }}" aria-label="Color of {{ item.product_name }}"{% if item.product.variant_colors|length <= 1 %} disabled{% else %} required{% endif %}>
+                                        {% if item.selected_color %}<option value="{{ item.selected_color }}" selected>{{ item.selected_color }}</option>{% else %}<option value="" selected>—</option>{% endif %}
+                                        {% for option in item.product.variant_colors %}
+                                            {% if option != item.selected_color %}
+                                            <option value="{{ option }}">{{ option }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    </label>
+                                </td>
+                                <td>
+                                    <input class="staff-order-field staff-quantity-field" type="number" name="item_quantity_{{ item.pk }}" value="{{ item.quantity }}" data-unit-price="{{ item.unit_price }}" min="1" step="1" required aria-label="Quantity of {{ item.product_name }}">
+                                </td>
+                                <td><span class="staff-unit-price" data-item-id="{{ item.pk }}">৳{{ item.unit_price|floatformat:2 }}</span></td>
+                                <td><span class="staff-order-line-total" data-item-id="{{ item.pk }}">৳{{ item.line_total|floatformat:2 }}</span></td>
+                                <td>
+                                    <input type="hidden" name="item_free_shipping_{{ item.pk }}" value="false">
+                                    <label>
+                                        <input class="staff-free-shipping-option" type="checkbox" name="item_free_shipping_{{ item.pk }}" value="true" {% if item.product.free_shipping %}checked{% endif %} aria-label="Free shipping for {{ item.product_name }}">
+                                        Free shipping
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="staff-remove-order-item">
+                                        <input class="staff-delete-order-item" type="checkbox" name="delete_item_{{ item.pk }}" value="true" aria-label="Remove {{ item.product_name }} from order">
+                                        Remove
+                                    </label>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="8">No items are recorded for this order.</td></tr>
+                            {% endfor %}
+                            <tr class="staff-add-order-item">
+                                <td>
+                                    <select class="staff-order-field staff-product-select" name="item_product_new" data-item-id="new" aria-label="Product to add to this order">
+                                        <option value="">Add another product…</option>
+                                        {% for staff_product in staff_products %}
+                                        {% if staff_product.is_active %}
+                                        <option value="{{ staff_product.pk }}">{{ staff_product.name }} — ৳{{ staff_product.starting_price|floatformat:2 }}</option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <label class="staff-size-option" hidden>
+                                        <span class="visually-hidden">Added product size</span>
+                                        <select class="staff-order-field staff-size-select" name="item_size_new" aria-label="Size of product to add" disabled></select>
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="staff-color-option" hidden>
+                                        <span class="visually-hidden">Added product color</span>
+                                        <select class="staff-order-field staff-color-select" name="item_color_new" aria-label="Color of product to add" disabled></select>
+                                    </label>
+                                </td>
+                                <td>
+                                    <input class="staff-order-field staff-quantity-field" type="number" name="item_quantity_new" value="1" min="1" step="1" aria-label="Quantity of product to add">
+                                </td>
+                                <td><span class="staff-unit-price" data-item-id="new">—</span></td>
+                                <td><span class="staff-order-line-total" data-item-id="new">—</span></td>
+                                <td class="staff-add-product-help">Select a product to add it</td>
+                                <td>—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="staff-fulfillment-fields">
+                    <div class="staff-fulfillment-card">
+                        <div class="staff-fulfillment-card-head">
+                            <h3>Customer details</h3>
+                            <p>Update the contact and delivery address for this order.</p>
+                        </div>
+                        <div class="staff-customer-fields">
+                            <div class="staff-field-group">
+                                <label for="staff-order-name">Customer name</label>
+                                <input id="staff-order-name" class="staff-order-field" type="text" name="full_name" value="{{ order.full_name }}" required>
+                            </div>
+                            <div class="staff-field-group">
+                                <label for="staff-order-phone">Phone</label>
+                                <input id="staff-order-phone" class="staff-order-field" type="tel" name="phone" value="{{ order.phone }}" required>
+                            </div>
+                            <div class="staff-field-group">
+                                <label for="staff-order-email">Email <span>(optional)</span></label>
+                                <input id="staff-order-email" class="staff-order-field" type="email" name="email" value="{{ order.email|default_if_none:'' }}">
+                            </div>
+                            <div class="staff-field-group staff-field-group-wide">
+                                <label for="staff-order-address">Address</label>
+                                <textarea id="staff-order-address" class="staff-order-field" name="address" required>{{ order.address }}</textarea>
+                            </div>
+                            <div class="staff-field-group">
+                                <label for="staff-order-thana">Thana</label>
+                                <input id="staff-order-thana" class="staff-order-field" type="text" name="thana" value="{{ order.thana }}">
+                            </div>
+                            <div class="staff-field-group">
+                                <label for="staff-order-zilla">Zilla</label>
+                                <input id="staff-order-zilla" class="staff-order-field" type="text" name="zilla" value="{{ order.zilla }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="staff-fulfillment-card staff-shipping-card">
+                        <div class="staff-fulfillment-card-head">
+                            <h3>Fulfillment</h3>
+                            <p>Choose the delivery area and track order progress.</p>
+                        </div>
+                        <div class="staff-field-group">
+                            <label for="staff-order-delivery-area">Shipping option</label>
+                            <select id="staff-order-delivery-area" class="staff-order-field" name="delivery_area">
+                                {% for value, label in delivery_area_choices %}
+                                <option value="{{ value }}" {% if value == order.delivery_area %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="staff-field-group">
+                            <label for="staff-order-status">Order status</label>
+                            <select id="staff-order-status" class="staff-order-field" name="status">
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if value == order.status %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="staff-field-group">
+                            <label for="staff-fulfillment-note">Fulfillment notes</label>
+                            <textarea id="staff-fulfillment-note" class="staff-order-field" name="fulfillment_note" rows="4" placeholder="Internal notes for preparing or delivering this order">{{ order.fulfillment_note }}</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="staff-fulfillment-actions">
+                    <span id="staff-detail-save-status" role="status" aria-live="polite">Changes save automatically.</span>
+                    <button type="submit" class="btn btn-secondary">Save now</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{{ product_catalog|json_script:"staff-product-catalog" }}
+<script>
+    const staffProductCatalog = JSON.parse(document.getElementById('staff-product-catalog').textContent);
+    const staffProductById = new Map(staffProductCatalog.map(function (product) {
+        return [String(product.id), product];
+    }));
+    const quantityFields = Array.from(document.querySelectorAll('.staff-quantity-field'));
+    const lineTotals = Array.from(document.querySelectorAll('.staff-order-line-total'));
+    const freeShippingOptions = Array.from(document.querySelectorAll('.staff-free-shipping-option'));
+    const subtotalAmount = document.getElementById('staff-order-subtotal');
+    const shippingAmount = document.getElementById('staff-order-shipping');
+    const totalAmount = document.getElementById('staff-order-total');
+    const cashDiscountField = document.getElementById('staff-cash-discount');
+    const deliveryArea = document.getElementById('staff-order-delivery-area');
+    const orderUpdateForm = document.getElementById('staff-order-update-form');
+    const saveStatus = document.getElementById('staff-detail-save-status');
+    const formatMoney = function (amount) {
+        return '৳' + amount.toFixed(2);
+    };
+
+    function updateVariantOptions(select, options, selectedValue) {
+        select.replaceChildren();
+        const hasMultipleOptions = options.length > 1;
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '—';
+        if (hasMultipleOptions || options.length === 0) {
+            select.appendChild(emptyOption);
+        }
+        options.forEach(function (name) {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+        if (options.length === 1) {
+            select.value = options[0];
+        } else if (options.includes(selectedValue)) {
+            select.value = selectedValue;
+        } else if (options.length > 1) {
+            select.value = options[0];
+        }
+        select.disabled = !hasMultipleOptions;
+        select.required = hasMultipleOptions;
+        select.parentElement.hidden = options.length === 0;
+    }
+
+    function updateOrderTotal() {
+        const addedProductField = document.querySelector('[name="item_product_new"]');
+        const addedProduct = staffProductById.get(addedProductField.value);
+        const subtotal = quantityFields.reduce(function (sum, field, index) {
+            const row = field.closest('tr');
+            const deleteOption = row && row.querySelector('.staff-delete-order-item');
+            const isRemoving = Boolean(deleteOption && deleteOption.checked);
+            const lineTotal = (Number(field.value) || 0) * Number(field.dataset.unitPrice || 0);
+            lineTotals[index].textContent = isRemoving
+                ? 'Removing'
+                : lineTotals[index].dataset.itemId === 'new' && !addedProduct
+                ? '—'
+                : formatMoney(lineTotal);
+            return sum + (isRemoving ? 0 : lineTotal);
+        }, 0);
+        const freeShippingApplies = freeShippingOptions.some(function (option) {
+            return option.checked && !option.closest('tr').querySelector('.staff-delete-order-item').checked;
+        }) || Boolean(addedProduct && addedProduct.free_shipping);
+        const rate = deliveryArea.value === 'inside_dhaka'
+            ? Number(shippingAmount.dataset.insideRate)
+            : Number(shippingAmount.dataset.outsideRate);
+        const shipping = freeShippingApplies ? 0 : rate;
+        const discount = Math.max(0, Number(cashDiscountField.value) || 0);
+
+        subtotalAmount.textContent = formatMoney(subtotal);
+        shippingAmount.textContent = formatMoney(shipping);
+        document.getElementById('staff-cash-discount-amount').textContent = formatMoney(discount);
+        totalAmount.textContent = formatMoney(subtotal + shipping - discount);
+    }
+
+    function updateSelectedVariant(product, itemId) {
+        const sizeField = document.querySelector('[name="item_size_' + itemId + '"]');
+        const colorField = document.querySelector('[name="item_color_' + itemId + '"]');
+        const quantityField = document.querySelector('[name="item_quantity_' + itemId + '"]');
+        const priceLabel = document.querySelector('.staff-unit-price[data-item-id="' + itemId + '"]');
+        if (!sizeField || !colorField || !quantityField || !priceLabel) return;
+
+        const size = sizeField.value;
+        const color = colorField.value;
+        const matchingVariant = product.variants.find(function (variant) {
+            return variant.size === size && variant.color === color;
+        });
+        if (!matchingVariant) return;
+
+        quantityField.dataset.unitPrice = matchingVariant.price;
+        priceLabel.textContent = formatMoney(Number(matchingVariant.price));
+        updateOrderTotal();
+    }
+
+    document.querySelectorAll('.staff-product-select').forEach(function (productField) {
+        productField.addEventListener('change', function () {
+            const itemId = productField.dataset.itemId;
+            const product = staffProductById.get(productField.value);
+            const sizeField = document.querySelector('[name="item_size_' + itemId + '"]');
+            const colorField = document.querySelector('[name="item_color_' + itemId + '"]');
+            const freeShippingField = document.querySelector('input[type="checkbox"][name="item_free_shipping_' + itemId + '"]');
+            if (!sizeField || !colorField) return;
+            if (!product) {
+                if (itemId === 'new') {
+                    const quantityField = document.querySelector('[name="item_quantity_new"]');
+                    const priceLabel = document.querySelector('.staff-unit-price[data-item-id="new"]');
+                    [sizeField, colorField].forEach(function (field) {
+                        field.replaceChildren();
+                        field.disabled = true;
+                        field.required = false;
+                        field.parentElement.hidden = true;
+                    });
+                    if (quantityField) quantityField.dataset.unitPrice = '0';
+                    if (priceLabel) priceLabel.textContent = '—';
+                    updateOrderTotal();
+                }
+                return;
+            }
+
+            const selectedSize = sizeField.value;
+            const selectedColor = colorField.value;
+            updateVariantOptions(sizeField, product.sizes, selectedSize);
+            updateVariantOptions(colorField, product.colors, selectedColor);
+            const selectedVariant = product.variants.find(function (variant) {
+                return variant.size === sizeField.value && variant.color === colorField.value;
+            }) || product.variants[0];
+            if (selectedVariant) {
+                sizeField.value = selectedVariant.size;
+                colorField.value = selectedVariant.color;
+            }
+            if (freeShippingField) freeShippingField.checked = product.free_shipping;
+            updateSelectedVariant(product, itemId);
+        });
+    });
+
+    document.querySelectorAll('.staff-size-select, .staff-color-select').forEach(function (optionField) {
+        optionField.addEventListener('change', function () {
+            const itemId = optionField.name.replace(/^item_(size|color)_/, '');
+            const productField = document.querySelector('.staff-product-select[data-item-id="' + itemId + '"]');
+            const product = productField && staffProductById.get(productField.value);
+            if (!product) return;
+
+            const sizeField = document.querySelector('[name="item_size_' + itemId + '"]');
+            const colorField = document.querySelector('[name="item_color_' + itemId + '"]');
+            if (optionField.classList.contains('staff-size-select')) {
+                const compatibleColors = [...new Set(product.variants
+                    .filter(function (variant) {
+                        return !sizeField.value || variant.size === sizeField.value;
+                    })
+                    .map(function (variant) { return variant.color; }))];
+                updateVariantOptions(colorField, compatibleColors, colorField.value);
+            } else {
+                const compatibleSizes = [...new Set(product.variants
+                    .filter(function (variant) {
+                        return !colorField.value || variant.color === colorField.value;
+                    })
+                    .map(function (variant) { return variant.size; }))];
+                updateVariantOptions(sizeField, compatibleSizes, sizeField.value);
+            }
+            updateSelectedVariant(product, itemId);
+        });
+    });
+
+    quantityFields.forEach(function (field) {
+        field.addEventListener('input', updateOrderTotal);
+    });
+    freeShippingOptions.forEach(function (option) {
+        option.addEventListener('change', updateOrderTotal);
+    });
+    document.querySelectorAll('.staff-delete-order-item').forEach(function (deleteOption) {
+        const row = deleteOption.closest('tr');
+        const editableFields = Array.from(row.querySelectorAll('input, select, textarea, button'))
+            .filter(function (field) { return field !== deleteOption; });
+        editableFields.forEach(function (field) {
+            field.dataset.originallyDisabled = field.disabled ? 'true' : 'false';
+        });
+        deleteOption.addEventListener('change', function () {
+            row.classList.toggle('is-removing', deleteOption.checked);
+            editableFields.forEach(function (field) {
+                field.disabled = deleteOption.checked || field.dataset.originallyDisabled === 'true';
+            });
+            updateOrderTotal();
+            queueOrderSave(true);
+        });
+    });
+    deliveryArea.addEventListener('change', updateOrderTotal);
+    cashDiscountField.addEventListener('input', updateOrderTotal);
+    updateOrderTotal();
+
+    let saveTimer;
+    let isSaving = false;
+    let saveQueued = false;
+    let reloadingAfterOrderItemChange = false;
+
+    function saveOrderDetails() {
+        window.clearTimeout(saveTimer);
+        if (!orderUpdateForm.reportValidity()) {
+            saveStatus.textContent = 'Check required fields before saving.';
+            saveStatus.classList.add('has-error');
+            return;
+        }
+        if (isSaving) {
+            saveQueued = true;
+            return;
+        }
+
+        const deletingItems = orderUpdateForm.querySelector('.staff-delete-order-item:checked');
+        isSaving = true;
+        saveStatus.textContent = 'Saving…';
+        saveStatus.classList.remove('has-error');
+        fetch(orderUpdateForm.action, {
+            method: 'POST',
+            body: new FormData(orderUpdateForm),
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            credentials: 'same-origin'
+        })
+        .then(function (response) {
+            return response.json().then(function (data) {
+                if (!response.ok) {
+                    throw new Error(data.error || 'Could not save order changes.');
+                }
+                return data;
+            });
+        })
+        .then(function (data) {
+            if (data.added_item || deletingItems) {
+                reloadingAfterOrderItemChange = true;
+                window.location.reload();
+                return;
+            }
+            subtotalAmount.textContent = formatMoney(Number(data.subtotal));
+            shippingAmount.textContent = formatMoney(Number(data.shipping_charge));
+            document.getElementById('staff-cash-discount-amount').textContent =
+                formatMoney(Number(data.cash_discount));
+            totalAmount.textContent = formatMoney(Number(data.total));
+            saveStatus.textContent = data.warning
+                ? 'Saved. ' + data.warning
+                : 'Saved';
+            if (data.warning) saveStatus.classList.add('has-error');
+        })
+        .catch(function (error) {
+            saveStatus.textContent = 'Save failed: ' + error.message;
+            saveStatus.classList.add('has-error');
+        })
+        .finally(function () {
+            isSaving = false;
+            if (saveQueued && !reloadingAfterOrderItemChange) {
+                saveQueued = false;
+                saveOrderDetails();
+            }
+        });
+    }
+
+    function queueOrderSave(immediate) {
+        window.clearTimeout(saveTimer);
+        if (immediate) {
+            saveOrderDetails();
+        } else {
+            saveStatus.textContent = 'Unsaved changes…';
+            saveStatus.classList.remove('has-error');
+            saveTimer = window.setTimeout(saveOrderDetails, 600);
+        }
+    }
+
+    orderUpdateForm.querySelectorAll('.staff-order-field').forEach(function (field) {
+        field.addEventListener('change', function () {
+            queueOrderSave(true);
+        });
+        if (field.matches('input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea')) {
+            field.addEventListener('input', function () {
+                updateOrderTotal();
+                queueOrderSave(false);
+            });
+        }
+    });
+    cashDiscountField.addEventListener('change', function () {
+        queueOrderSave(true);
+    });
+    cashDiscountField.addEventListener('input', function () {
+        queueOrderSave(false);
+    });
+    orderUpdateForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        saveOrderDetails();
+    });
+</script>
+{% endblock %}

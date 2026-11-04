@@ -1,0 +1,255 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ seo.title }}{% endblock %}</title>
+    <meta name="description" content="{{ seo.description }}">
+    <meta name="robots" content="{{ seo.robots }}">
+    <link rel="canonical" href="{{ seo.canonical_url }}">
+    <meta property="og:title" content="{{ seo.og_title }}">
+    <meta property="og:description" content="{{ seo.og_description }}">
+    <meta property="og:site_name" content="{{ seo.site_name }}">
+    <meta property="og:type" content="{{ seo.og_type }}">
+    <meta property="og:url" content="{{ seo.canonical_url }}">
+    {% if seo.og_image %}
+    <meta property="og:image" content="{{ seo.og_image }}">
+    <meta name="twitter:image" content="{{ seo.og_image }}">
+    {% endif %}
+    <meta name="twitter:card" content="{{ seo.twitter_card }}">
+    <meta name="twitter:title" content="{{ seo.twitter_title }}">
+    <meta name="twitter:description" content="{{ seo.twitter_description }}">
+    {% if seo.twitter_handle %}<meta name="twitter:site" content="{{ seo.twitter_handle }}">{% endif %}
+    {% if seo.google_site_verification %}<meta name="google-site-verification" content="{{ seo.google_site_verification }}">{% endif %}
+    {{ seo.json_ld|json_script:"site-seo-schema" }}
+    {% block social_metadata %}{% endblock %}
+    <meta name="theme-color" content="{{ site_settings.nav_bg_color|default:'#ffffff' }}">
+    {% if not request.user.is_staff and site_settings.ga_measurement_id %}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ site_settings.ga_measurement_id }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '{{ site_settings.ga_measurement_id|escapejs }}', {send_page_view: false});
+      gtag('event', 'page_view', {
+        page_location: window.location.href,
+        page_path: window.location.pathname + window.location.search,
+        page_title: document.title
+      });
+    </script>
+    {% endif %}
+    {% if not request.user.is_staff and site_settings.facebook_pixel_id %}
+    <script>
+      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '{{ site_settings.facebook_pixel_id|escapejs }}');
+      fbq('track', 'PageView');
+    </script>
+    {% endif %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <a class="skip-to-content" href="#main-content">Skip to content</a>
+    <header class="topbar" style="background: {{ site_settings.nav_bg_color|default:'#ffffff' }}; color: {{ site_settings.nav_text_color|default:'#111827' }};">
+        <div class="container nav-wrap">
+            <a href="{% url 'home' %}" class="brand">
+                {% if site_settings.logo %}
+                    <img src="{{ site_settings.logo.url }}" alt="{{ site_settings.brand_name|default:'Brand' }}" class="brand-logo">
+                {% else %}
+                    <span class="brand-mark" style="background: {{ site_settings.accent_color|default:'#1d4ed8' }};">{{ site_settings.brand_name|default:'B'|slice:':1'|upper }}</span>
+                {% endif %}
+                <span>{{ site_settings.brand_name|default:'BDBazaar' }}</span>
+            </a>
+
+            <button type="button" class="mobile-menu-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="main-navigation">
+                <span class="mobile-menu-icon" aria-hidden="true"></span>
+            </button>
+
+            <form class="nav-search" action="{% url 'shop' %}" method="get" data-suggestions-url="{% url 'search_suggestions' %}">
+                <input type="search" name="search" value="{{ request.GET.search|default:'' }}" placeholder="{{ site_settings.search_placeholder|default:'Search products...' }}" aria-label="Search products" aria-autocomplete="list" aria-controls="nav-search-results" autocomplete="off">
+                <div class="nav-search-results" id="nav-search-results" role="listbox" aria-label="Product suggestions" hidden></div>
+            </form>
+
+            <nav id="main-navigation" class="nav-links" aria-label="Main navigation" style="color: {{ site_settings.nav_text_color|default:'#111827' }};">
+                <a href="{% url 'home' %}">Home</a>
+                <a href="{% url 'shop' %}">Shop</a>
+                <a href="{% url 'categories' %}">Categories</a>
+                {% if request.user.is_staff %}
+                    <a href="{{ staff_navigation_url }}" class="nav-dashboard-link">{{ staff_navigation_label }}</a>
+                    <form method="post" action="{% url 'staff_logout' %}" class="nav-logout-form">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-logout">Logout</button>
+                    </form>
+                {% else %}
+                    <a href="{{ staff_navigation_url }}" class="nav-dashboard-link">Login</a>
+                {% endif %}
+                <a href="{% url 'checkout' %}" class="cart-pill" style="background: {{ site_settings.accent_color|default:'#1d4ed8' }}; color: #fff;" aria-label="Checkout, {{ cart_count }} items in cart">Cart <span>{{ cart_count }}</span></a>
+            </nav>
+        </div>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <div class="mobile-order-action">
+        {% if request.resolver_match.url_name == 'product_detail' %}
+        <button type="submit" form="product-buy-form" class="btn btn-primary">Order now</button>
+        {% elif request.resolver_match.url_name == 'checkout' %}
+        <button type="submit" form="checkout-form" class="btn btn-primary">Place order</button>
+        {% else %}
+        <a href="{% url 'checkout' %}" class="btn btn-primary">Go to checkout</a>
+        {% endif %}
+    </div>
+
+    <footer class="site-footer">
+        <div class="container footer-grid">
+            <div>
+                <h3>{{ site_settings.brand_name|default:'BDBazaar' }}</h3>
+                <p>{{ site_settings.about_text|default:'Fast and trusted shopping for everyday essentials, gadgets, and home upgrades across Bangladesh.' }}</p>
+                <div class="social-links">
+                    {% if site_settings.facebook_url %}<a href="{{ site_settings.facebook_url }}" target="_blank" rel="noreferrer">Facebook</a>{% endif %}
+                    {% if site_settings.instagram_url %}<a href="{{ site_settings.instagram_url }}" target="_blank" rel="noreferrer">Instagram</a>{% endif %}
+                    {% if site_settings.twitter_url %}<a href="{{ site_settings.twitter_url }}" target="_blank" rel="noreferrer">Twitter</a>{% endif %}
+                    {% if site_settings.youtube_url %}<a href="{{ site_settings.youtube_url }}" target="_blank" rel="noreferrer">YouTube</a>{% endif %}
+                </div>
+            </div>
+            <div>
+                <h4>Quick links</h4>
+                <ul>
+                    <li><a href="{% url 'home' %}">Home</a></li>
+                    <li><a href="{% url 'shop' %}">Shop all</a></li>
+                    <li><a href="{% url 'categories' %}">Categories</a></li>
+                    <li><a href="{% url 'checkout' %}">Checkout</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Contact</h4>
+                <ul>
+                    <li><a href="tel:{{ site_settings.phone|default:'+880 1700-000000' }}">{{ site_settings.phone|default:'+880 1700-000000' }}</a></li>
+                    <li><a href="mailto:{{ site_settings.email|default:'support@bdbazaar.com' }}">{{ site_settings.email|default:'support@bdbazaar.com' }}</a></li>
+                    <li>{{ site_settings.address|default:'Dhaka, Bangladesh' }}</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">{{ site_settings.copyright_text|default:'© 2026 BDBazaar. All rights reserved.' }}</div>
+    </footer>
+    {% if site_settings.whatsapp_number %}
+    <a
+        class="whatsapp-float"
+        href="https://wa.me/{{ site_settings.whatsapp_number }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Chat with us on WhatsApp"
+        title="Chat with us on WhatsApp"
+    >
+        <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <path d="M16.02 3.2A12.7 12.7 0 0 0 5.1 22.38L3.4 28.6l6.37-1.67A12.7 12.7 0 1 0 16.02 3.2Zm0 23.08c-1.95 0-3.86-.52-5.52-1.5l-.4-.24-3.78.99 1.01-3.68-.26-.42a10.37 10.37 0 1 1 8.95 4.85Zm5.7-7.77c-.31-.16-1.84-.91-2.12-1.02-.29-.1-.5-.16-.71.16-.21.31-.81 1.02-.99 1.23-.18.21-.37.24-.68.08-.31-.16-1.31-.48-2.5-1.53-.92-.82-1.54-1.83-1.72-2.14-.18-.31-.02-.48.14-.64.14-.14.31-.37.47-.55.16-.18.21-.31.31-.52.11-.21.06-.39-.02-.55-.08-.16-.71-1.71-.97-2.34-.25-.61-.51-.53-.71-.54h-.6c-.21 0-.55.08-.84.39-.29.31-1.1 1.07-1.1 2.61 0 1.54 1.12 3.03 1.28 3.24.16.21 2.2 3.36 5.33 4.71.74.32 1.32.51 1.77.65.74.24 1.42.21 1.96.13.6-.09 1.84-.75 2.1-1.49.26-.73.26-1.36.18-1.49-.08-.13-.29-.21-.6-.37Z"/>
+        </svg>
+    </a>
+    {% endif %}
+    <script>
+        const searchForm = document.querySelector('.nav-search');
+        const searchInput = searchForm.querySelector('input[name="search"]');
+        const searchResults = document.getElementById('nav-search-results');
+        let searchTimer;
+        let searchController;
+
+        const hideSearchResults = () => {
+            searchResults.hidden = true;
+            searchResults.replaceChildren();
+            searchInput.setAttribute('aria-expanded', 'false');
+        };
+
+        searchInput.setAttribute('aria-expanded', 'false');
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            if (searchController) searchController.abort();
+
+            const term = searchInput.value.trim();
+            if (term.length < 2) {
+                hideSearchResults();
+                return;
+            }
+
+            searchTimer = setTimeout(async () => {
+                searchController = new AbortController();
+                try {
+                    const url = new URL(searchForm.dataset.suggestionsUrl, window.location.origin);
+                    url.searchParams.set('search', term);
+                    const response = await fetch(url, {signal: searchController.signal});
+                    if (!response.ok) throw new Error('Unable to load search suggestions.');
+                    const data = await response.json();
+                    if (searchInput.value.trim() !== term) return;
+
+                    searchResults.replaceChildren();
+                    if (data.results.length) {
+                        data.results.forEach(product => {
+                            const link = document.createElement('a');
+                            link.className = 'nav-search-result';
+                            link.href = product.url;
+                            link.setAttribute('role', 'option');
+                            link.textContent = `${product.name} · ${product.category} · ৳${product.price}`;
+                            searchResults.append(link);
+                        });
+                    } else {
+                        const empty = document.createElement('div');
+                        empty.className = 'nav-search-empty';
+                        empty.setAttribute('role', 'option');
+                        empty.setAttribute('aria-disabled', 'true');
+                        empty.textContent = 'No matching products';
+                        searchResults.append(empty);
+                    }
+                    searchResults.hidden = false;
+                    searchInput.setAttribute('aria-expanded', 'true');
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        const message = document.createElement('div');
+                        message.className = 'nav-search-empty';
+                        message.setAttribute('role', 'option');
+                        message.setAttribute('aria-disabled', 'true');
+                        message.textContent = 'Suggestions are unavailable. Press Enter to search.';
+                        searchResults.replaceChildren(message);
+                        searchResults.hidden = false;
+                        searchInput.setAttribute('aria-expanded', 'true');
+                    }
+                }
+            }, 250);
+        });
+
+        searchInput.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                hideSearchResults();
+            } else if (event.key === 'ArrowDown' && !searchResults.hidden) {
+                const firstResult = searchResults.querySelector('a');
+                if (firstResult) {
+                    event.preventDefault();
+                    firstResult.focus();
+                }
+            }
+        });
+
+        document.addEventListener('click', event => {
+            if (!searchForm.contains(event.target)) hideSearchResults();
+        });
+
+        const menuToggle = document.querySelector('.mobile-menu-toggle');
+        const mainNavigation = document.getElementById('main-navigation');
+
+        menuToggle.addEventListener('click', () => {
+            const isExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
+            menuToggle.setAttribute('aria-expanded', String(!isExpanded));
+            menuToggle.setAttribute('aria-label', isExpanded ? 'Open menu' : 'Close menu');
+            mainNavigation.classList.toggle('is-open', !isExpanded);
+        });
+
+        mainNavigation.addEventListener('click', event => {
+            if (event.target.closest('a')) {
+                menuToggle.setAttribute('aria-expanded', 'false');
+                menuToggle.setAttribute('aria-label', 'Open menu');
+                mainNavigation.classList.remove('is-open');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Super admin dashboard | BDBazaar{% endblock %}
+
+{% block content %}
+<section class="section super-admin-page">
+    <div class="container">
+        <header class="super-admin-header">
+            <div>
+                <span class="super-admin-eyebrow">Platform control center</span>
+                <h1>Super admin dashboard</h1>
+                <p>Manage store data, users, operations, and Django administration from one place.</p>
+            </div>
+            <a href="{% url 'home' %}" class="super-admin-store-link">View storefront <span aria-hidden="true">↗</span></a>
+        </header>
+
+        <section class="super-admin-quick-links" aria-label="Quick access">
+            <a href="{% url 'admin_dashboard' %}" class="super-admin-quick-card">
+                <span class="super-admin-quick-icon analytics" aria-hidden="true">▥</span>
+                <span><strong>Store analytics</strong><small>Revenue, orders, and inventory overview</small></span>
+                <span class="super-admin-arrow" aria-hidden="true">→</span>
+            </a>
+            <a href="{% url 'staff_dashboard' %}" class="super-admin-quick-card">
+                <span class="super-admin-quick-icon staff" aria-hidden="true">◎</span>
+                <span><strong>Staff dashboard &amp; activity</strong><small>Orders, fulfillment, and call notes</small></span>
+                <span class="super-admin-arrow" aria-hidden="true">→</span>
+            </a>
+            <a href="{% url 'admin:index' %}" class="super-admin-quick-card">
+                <span class="super-admin-quick-icon django" aria-hidden="true">D</span>
+                <span><strong>Open Django admin</strong><small>Use the full built-in admin interface</small></span>
+                <span class="super-admin-arrow" aria-hidden="true">→</span>
+            </a>
+        </section>
+
+        <div class="super-admin-section-heading">
+            <div>
+                <span class="super-admin-eyebrow">Administration</span>
+                <h2>Manage your data</h2>
+            </div>
+            <span class="super-admin-secure-label"><span aria-hidden="true">✓</span> Superuser access</span>
+        </div>
+
+        <div class="super-admin-app-grid">
+            {% for app in admin_apps %}
+            <section class="super-admin-app-card">
+                <div class="super-admin-app-heading">
+                    <span class="super-admin-app-icon" aria-hidden="true">{{ app.name|slice:":1"|upper }}</span>
+                    <h3>{{ app.name }}</h3>
+                </div>
+                <ul>
+                    {% for model in app.models %}
+                    <li>
+                        {% if model.admin_url %}
+                        <a href="{{ model.admin_url }}">
+                            <span>{{ model.name }}</span>
+                            <span aria-hidden="true">→</span>
+                        </a>
+                        {% else %}
+                        <span class="super-admin-no-permission">{{ model.name }}</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% empty %}
+            <div class="super-admin-no-apps">
+                No admin sections are currently available for this account.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

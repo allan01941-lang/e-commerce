@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">Browse our collection</span>
+                <h1>Shop by category</h1>
+            </div>
+        </div>
+
+        <div class="category-row category-directory">
+            {% for category in categories %}
+            <a href="{% url 'shop' %}?category={{ category.slug }}" class="category-card">
+                {% if category.image %}
+                    <img src="{{ category.image.url }}" alt="{{ category.name }}" loading="lazy" decoding="async">
+                {% else %}
+                    <img src="{% static 'images/category-placeholder.svg' %}" alt="Default category image for {{ category.name }}" loading="lazy" decoding="async">
+                {% endif %}
+                <span>{{ category.name }}</span>
+                <small>{{ category.product_count }} item{{ category.product_count|pluralize }}</small>
+            </a>
+            {% empty %}
+            <p class="empty-state">Categories will appear here once they are added in the admin.</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

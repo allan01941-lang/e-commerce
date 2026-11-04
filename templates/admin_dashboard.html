@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard | BDBazaar{% endblock %}
+
+{% block content %}
+<section class="section admin-dashboard admin-overview">
+    <div class="container">
+        <header class="admin-overview-header">
+            <div>
+                <span class="eyebrow">Store management</span>
+                <h1>Good day, {{ request.user.get_short_name|default:request.user.username }}</h1>
+                <p>Monitor orders, revenue, inventory, and product performance.</p>
+            </div>
+            <nav class="dashboard-actions" aria-label="Dashboard shortcuts">
+                <a href="{% url 'home' %}" class="btn btn-secondary">View storefront</a>
+                {% if request.user.is_superuser %}
+                <a href="{% url 'super_admin_dashboard' %}" class="btn btn-secondary">Super admin dashboard</a>
+                {% endif %}
+                <a href="{% url 'staff_dashboard' %}" class="btn btn-secondary">Staff dashboard &amp; activity</a>
+                {% if request.user.is_superuser %}
+                <a href="{% url 'admin:index' %}" class="btn btn-primary">Django admin</a>
+                {% endif %}
+            </nav>
+        </header>
+
+        {% if messages %}
+        <div class="admin-notices" role="status" aria-live="polite">
+            {% for message in messages %}
+            <p class="admin-notice {{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="get" action="{% url 'admin_dashboard' %}" class="admin-date-filter">
+            <div class="admin-date-filter-copy">
+                <span class="admin-dashboard-kicker">Dashboard overview</span>
+                <strong>Filter by order date</strong>
+                <span>Status totals, best sellers, and orders update to match your range.</span>
+            </div>
+            <div class="admin-date-filter-fields">
+                <label>
+                    <span>From</span>
+                    {{ filter_form.start_date }}
+                </label>
+                <label>
+                    <span>To</span>
+                    {{ filter_form.end_date }}
+                </label>
+                <button type="submit" class="btn btn-primary">Apply dates</button>
+                {% if selected_start_date or selected_end_date %}
+                <a href="{% url 'admin_dashboard' %}" class="admin-filter-reset">Clear</a>
+                {% endif %}
+            </div>
+            {% if filter_form.non_field_errors %}
+            <p class="admin-filter-error" role="alert">{{ filter_form.non_field_errors }}</p>
+            {% endif %}
+            {% for field in filter_form %}
+                {% for error in field.errors %}
+                <p class="admin-filter-error" role="alert">{{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+        </form>
+
+        <div class="admin-kpi-grid">
+            <article class="admin-kpi-card admin-kpi-primary">
+                <span class="admin-kpi-icon" aria-hidden="true">#</span>
+                <span class="admin-kpi-label">Orders in range</span>
+                <strong>{{ total_orders }}</strong>
+                <small>Across all order statuses</small>
+            </article>
+            <article class="admin-kpi-card admin-kpi-revenue">
+                <span class="admin-kpi-icon" aria-hidden="true">৳</span>
+                <span class="admin-kpi-label">Delivered revenue</span>
+                <strong>৳{{ total_revenue|floatformat:2 }}</strong>
+                <small>Delivered orders in selected range</small>
+            </article>
+            <article class="admin-kpi-card admin-kpi-stock">
+                <span class="admin-kpi-icon" aria-hidden="true">!</span>
+                <span class="admin-kpi-label">Low stock items</span>
+                <strong>{{ low_stock_count }}</strong>
+                <small>Products with 5 or fewer available</small>
+            </article>
+        </div>
+
+        <section class="admin-dashboard-section" aria-labelledby="status-summary-title">
+            <div class="admin-section-heading">
+                <div>
+                    <span class="admin-dashboard-kicker">At a glance</span>
+                    <h2 id="status-summary-title">Orders by status</h2>
+                </div>
+                <span class="admin-section-caption">Count and total order value</span>
+            </div>
+            <div class="admin-status-grid">
+                {% for item in status_summary %}
+                <article class="admin-status-card status-{{ item.value }}">
+                    <div class="admin-status-card-top">
+                        <span class="admin-status-dot" aria-hidden="true"></span>
+                        <span>{{ item.label }}</span>
+                    </div>
+                    <strong>{{ item.order_count }}</strong>
+                    <small>৳{{ item.amount|floatformat:2 }}</small>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <div class="admin-insights-grid">
+            <section class="admin-panel" aria-labelledby="best-selling-title">
+                <div class="admin-panel-heading">
+                    <div>
+                        <span class="admin-dashboard-kicker">Product performance</span>
+                        <h2 id="best-selling-title">Best-selling items</h2>
+                    </div>
+                    <span class="admin-panel-icon" aria-hidden="true">↗</span>
+                </div>
+                <div class="admin-table-wrap">
+                    <table class="admin-modern-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Units</th>
+                                <th>Sales value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in best_selling %}
+                            <tr>
+                                <td>
+                                    <strong>{{ product.product_name }}</strong>
+                                    <small>{{ product.product__category__name|default:"Uncategorized" }}</small>
+                                </td>
+                                <td><span class="admin-unit-count">{{ product.total_sold }}</span></td>
+                                <td class="admin-money">৳{{ product.total_sales|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="admin-empty-state">No sales in this date range.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-panel admin-stock-panel" aria-labelledby="low-stock-title">
+                <div class="admin-panel-heading">
+                    <div>
+                        <span class="admin-dashboard-kicker">Inventory watch</span>
+                        <h2 id="low-stock-title">Low stock</h2>
+                    </div>
+                    <a class="admin-panel-link" href="{% url 'staff_inventory' %}">Manage stock <span aria-hidden="true">→</span></a>
+                </div>
+                <p class="admin-panel-description">Live remaining quantities for products with 5 or fewer in stock.</p>
+                <ul class="admin-low-stock-list">
+                    {% for product in low_stock_products %}
+                    <li>
+                        <span class="admin-stock-indicator" aria-hidden="true">!</span>
+                        <span class="admin-stock-product">
+                            <strong>{{ product.name }}</strong>
+                            <small>{{ product.sku|default:"No SKU" }}</small>
+                        </span>
+                        <span class="admin-stock-remaining {% if product.stock_quantity == 0 %}out-of-stock{% endif %}">
+                            {{ product.stock_quantity }} <small>left</small>
+                        </span>
+                    </li>
+                    {% empty %}
+                    <li class="admin-empty-state">All products are above the low-stock threshold.</li>
+                    {% endfor %}
+                </ul>
+            </section>
+        </div>
+
+        <section class="admin-panel admin-orders-panel" aria-labelledby="orders-details-title">
+            <div class="admin-panel-heading">
+                <div>
+                    <span class="admin-dashboard-kicker">Order management</span>
+                    <h2 id="orders-details-title">Orders details</h2>
+                </div>
+                <span class="admin-panel-count">{{ order_details.paginator.count }} orders</span>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-modern-table admin-orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Payment</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in order_details %}
+                        <tr>
+                            <td><a class="admin-order-number" href="{% url 'staff_order_detail' order.pk %}">#{{ order.display_order_number }}</a></td>
+                            <td>{{ order.created_at|date:"M j, Y" }}</td>
+                            <td>
+                                <strong>{{ order.full_name }}</strong>
+                                <small>{{ order.phone }}</small>
+                            </td>
+                            <td>{{ order.get_payment_method_display }}</td>
+                            <td class="admin-money">৳{{ order.total|floatformat:2 }}</td>
+                            <td><span class="admin-order-status status-{{ order.status }}">{{ order.get_status_display }}</span></td>
+                            <td>
+                                <div class="admin-order-actions">
+                                    <a href="{% url 'staff_order_detail' order.pk %}" class="admin-view-order">View</a>
+                                    <form method="post" action="{% url 'update_order_status' order.pk %}" class="admin-status-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="start_date" value="{{ selected_start_date|default:'' }}">
+                                        <input type="hidden" name="end_date" value="{{ selected_end_date|default:'' }}">
+                                        <select name="status" aria-label="Update status for order #{{ order.display_order_number }}">
+                                            {% for value, label in status_choices %}
+                                            <option value="{{ value }}" {% if value == order.status %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" aria-label="Save status for order #{{ order.display_order_number }}">Save</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="admin-empty-state">No orders found for this date range.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if order_details.has_other_pages %}
+            <nav class="admin-pagination" aria-label="Orders pages">
+                {% if order_details.has_previous %}
+                <a href="?start_date={{ selected_start_date|default:'' }}&amp;end_date={{ selected_end_date|default:'' }}&amp;orders_page={{ order_details.previous_page_number }}">← Previous</a>
+                {% else %}<span class="disabled">← Previous</span>{% endif %}
+                <span>Page {{ order_details.number }} of {{ order_details.paginator.num_pages }}</span>
+                {% if order_details.has_next %}
+                <a href="?start_date={{ selected_start_date|default:'' }}&amp;end_date={{ selected_end_date|default:'' }}&amp;orders_page={{ order_details.next_page_number }}">Next →</a>
+                {% else %}<span class="disabled">Next →</span>{% endif %}
+            </nav>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

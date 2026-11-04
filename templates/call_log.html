@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Call history · Order #{{ order.display_order_number }} | Staff dashboard{% endblock %}
+
+{% block content %}
+<section class="section staff-call-log-page">
+    <div class="container">
+        <header class="staff-call-log-header">
+            <div>
+                <a href="{% url 'staff_dashboard' %}" class="staff-call-log-back">← Back to staff dashboard</a>
+                <span class="eyebrow">Customer follow-up</span>
+                <h1>Call history <span>#{{ order.display_order_number }}</span></h1>
+                <p>Keep a clear record of contact attempts and customer discussions.</p>
+            </div>
+            <a class="btn btn-primary staff-call-customer" href="tel:{{ order.phone }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.35 1.9.69 2.8a2 2 0 0 1-.45 2.11L8.08 9.92a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.84.57 2.8.69A2 2 0 0 1 22 16.92Z"></path>
+                </svg>
+                Call {{ order.phone }}
+            </a>
+        </header>
+
+        {% if messages %}
+        <div class="admin-notices" role="status" aria-live="polite">
+            {% for message in messages %}
+            <p class="admin-notice {{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="staff-call-log-layout">
+            <section class="staff-call-log-card staff-call-customer-card" aria-labelledby="call-customer-heading">
+                <div class="staff-call-card-heading">
+                    <span class="staff-call-avatar" aria-hidden="true">{{ order.full_name|slice:":1"|upper }}</span>
+                    <div>
+                        <span class="staff-call-kicker">Customer</span>
+                        <h2 id="call-customer-heading">{{ order.full_name }}</h2>
+                    </div>
+                </div>
+                <dl class="staff-call-customer-info">
+                    <div>
+                        <dt>Phone</dt>
+                        <dd><a href="tel:{{ order.phone }}">{{ order.phone }}</a></dd>
+                    </div>
+                    <div>
+                        <dt>Order status</dt>
+                        <dd><span class="staff-call-order-status status-{{ order.status }}">{{ order.get_status_display }}</span></dd>
+                    </div>
+                    <div>
+                        <dt>Order date</dt>
+                        <dd>{{ order.created_at|date:"M j, Y, P" }}</dd>
+                    </div>
+                </dl>
+                <a href="{% url 'staff_order_detail' order.pk %}" class="staff-call-order-link">View order details <span aria-hidden="true">→</span></a>
+            </section>
+
+            <section class="staff-call-log-card staff-call-note-card" aria-labelledby="add-call-note-heading">
+                <span class="staff-call-kicker">Contact record</span>
+                <h2 id="add-call-note-heading">Add discussion note</h2>
+                <p>Capture the call outcome, callback request, or any important details.</p>
+                <form method="post" class="staff-call-note-form">
+                    {% csrf_token %}
+                    <label for="{{ form.note.id_for_label }}">Call notes</label>
+                    {{ form.note }}
+                    {% for error in form.note.errors %}<small class="staff-call-form-error" role="alert">{{ error }}</small>{% endfor %}
+                    <button type="submit" class="btn btn-primary">Save call note</button>
+                </form>
+            </section>
+        </div>
+
+        <section class="staff-call-log-card staff-call-history" aria-labelledby="call-history-heading">
+            <div class="staff-call-history-heading">
+                <div>
+                    <span class="staff-call-kicker">Communication timeline</span>
+                    <h2 id="call-history-heading">Discussion history</h2>
+                </div>
+                <span class="staff-call-history-count">{{ call_logs.paginator.count }} note{{ call_logs.paginator.count|pluralize }}</span>
+            </div>
+            <div class="staff-call-timeline">
+                {% for call_log in call_logs %}
+                <article class="staff-call-entry">
+                    <span class="staff-call-timeline-marker" aria-hidden="true"></span>
+                    <div class="staff-call-entry-content">
+                        <div class="staff-call-entry-meta">
+                            <strong>{{ call_log.staff_member.get_full_name|default:call_log.staff_member.username|default:"Former staff member" }}</strong>
+                            <time datetime="{{ call_log.created_at|date:'c' }}">{{ call_log.created_at|date:"M j, Y · P" }}</time>
+                        </div>
+                        <p>{{ call_log.note|linebreaksbr }}</p>
+                    </div>
+                </article>
+                {% empty %}
+                <div class="staff-call-empty">
+                    <span aria-hidden="true">☎</span>
+                    <strong>No call notes yet</strong>
+                    <p>Saved contact history for this order will appear here.</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% if call_logs.has_other_pages %}
+            <nav class="staff-call-pagination" aria-label="Call history pages">
+                {% if call_logs.has_previous %}
+                <a href="?page={{ call_logs.previous_page_number }}">← Previous</a>
+                {% else %}<span class="disabled">← Previous</span>{% endif %}
+                <span>Page {{ call_logs.number }} of {{ call_logs.paginator.num_pages }}</span>
+                {% if call_logs.has_next %}
+                <a href="?page={{ call_logs.next_page_number }}">Next →</a>
+                {% else %}<span class="disabled">Next →</span>{% endif %}
+            </nav>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

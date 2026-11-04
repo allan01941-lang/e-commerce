@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Inventory &amp; restock | BDBazaar{% endblock %}
+
+{% block content %}
+<section class="section admin-dashboard staff-dashboard">
+    <div class="container">
+        <div class="dashboard-header">
+            <div>
+                <span class="eyebrow">Stock management</span>
+                <h1>Inventory &amp; restock</h1>
+                <p>Set opening stock and record restocks for each size/color combination.</p>
+            </div>
+            <a href="{% url 'staff_dashboard' %}" class="btn btn-secondary">Back to staff dashboard</a>
+        </div>
+
+        {% if messages %}
+        <div class="admin-notices" role="status" aria-live="polite">
+            {% for message in messages %}
+            <p class="admin-notice {{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="panel-box full-panel staff-stock-panel">
+            <div class="panel-head">
+                <h2>Product stock quantities</h2>
+                <span class="staff-stock-count" data-stock-count aria-live="polite">
+                    {{ stock_products|length }} product{{ stock_products|length|pluralize }}
+                </span>
+            </div>
+            <p class="staff-stock-help">
+                Review stock movement by product and record received quantities for each size/color combination.
+            </p>
+            <div class="staff-stock-toolbar">
+                <label for="staff-stock-search">Search products</label>
+                <input
+                    id="staff-stock-search"
+                    class="staff-stock-search"
+                    type="search"
+                    placeholder="Type a product name..."
+                    autocomplete="off"
+                    aria-controls="staff-stock-table"
+                >
+            </div>
+            <div class="table-wrap">
+                <table id="staff-stock-table">
+                    <thead>
+                        <tr>
+                            <th>Product Name</th>
+                            <th>Restocked</th>
+                            <th>Shipped</th>
+                            <th>Delivered</th>
+                            <th>Returned</th>
+                            <th>Available</th>
+                            <th>Receive Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in stock_products %}
+                        <tr id="product-stock-{{ product.pk }}" data-stock-product data-product-name="{{ product.name|lower }}">
+                            <td class="staff-stock-product-name">{{ product.name }}</td>
+                            <td>{{ product.restocked_quantity }}</td>
+                            <td>{{ product.shipped_quantity }}</td>
+                            <td>{{ product.delivered_quantity }}</td>
+                            <td>{{ product.returned_quantity }}</td>
+                            <td>
+                                <span class="stock-quantity{% if product.stock_quantity == 0 %} out-of-stock{% elif product.stock_quantity <= 5 %} low-stock{% endif %}">
+                                    {{ product.stock_quantity }}
+                                    {% if product.stock_quantity == 0 %} — Out of stock{% elif product.stock_quantity <= 5 %} — Low stock{% endif %}
+                                </span>
+                            </td>
+                            <td class="staff-variant-editor-cell">
+                                <form method="post" action="{% url 'staff_update_product_variants' product.pk %}" class="staff-variant-editor" data-product-id="{{ product.pk }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="variant_id" value="{{ product.variant_editor.selected_variant.pk }}" data-variant-id>
+                                    <div class="staff-variant-controls">
+                                        <label for="variant-size-{{ product.pk }}">
+                                            Size
+                                            <select id="variant-size-{{ product.pk }}" name="size" class="staff-order-field" data-variant-size>
+                                                {% if product.variant_editor.size_options %}
+                                                    {% for size in product.variant_editor.size_options %}
+                                                    <option value="{{ size }}"{% if size == product.variant_editor.selected_variant.size %} selected{% endif %}>{{ size }}</option>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <option value="">Standard</option>
+                                                {% endif %}
+                                            </select>
+                                        </label>
+                                        <label for="variant-color-{{ product.pk }}">
+                                            Color
+                                            <select id="variant-color-{{ product.pk }}" name="color" class="staff-order-field" data-variant-color>
+                                                {% if product.variant_editor.color_options %}
+                                                    {% for color in product.variant_editor.color_options %}
+                                                    <option value="{{ color }}"{% if color == product.variant_editor.selected_variant.color %} selected{% endif %}>{{ color }}</option>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <option value="">Standard</option>
+                                                {% endif %}
+                                            </select>
+                                        </label>
+                                        <label for="variant-restock-{{ product.pk }}">
+                                            Restock qty
+                                            <input id="variant-restock-{{ product.pk }}" class="staff-order-field" type="number" name="restock_quantity" min="1" max="2147483647" step="1" placeholder="Qty">
+                                        </label>
+                                        <button type="submit" class="btn btn-secondary compact-btn" data-variant-save>Save variant</button>
+                                    </div>
+                                    <p class="field-error" data-variant-error hidden>That size/color combination is not configured for this product.</p>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr data-stock-empty><td colspan="7">No active products.</td></tr>
+                        {% endfor %}
+                        <tr data-stock-no-results hidden><td colspan="7">No products match your search.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</section>
+{{ variant_editor_catalog|json_script:"staff-variant-editor-catalog" }}
+<script>
+    const stockSearch = document.getElementById('staff-stock-search');
+    const stockRows = Array.from(document.querySelectorAll('[data-stock-product]'));
+    const stockCount = document.querySelector('[data-stock-count]');
+    const stockNoResults = document.querySelector('[data-stock-no-results]');
+
+    stockSearch.addEventListener('input', function () {
+        const query = stockSearch.value.trim().toLocaleLowerCase();
+        let visibleCount = 0;
+
+        stockRows.forEach(function (row) {
+            const matches = row.dataset.productName.includes(query);
+            row.hidden = !matches;
+            if (matches) visibleCount += 1;
+        });
+
+        stockNoResults.hidden = !stockRows.length || visibleCount > 0;
+        stockCount.textContent = query
+            ? visibleCount + ' of ' + stockRows.length + ' products'
+            : stockRows.length + ' product' + (stockRows.length === 1 ? '' : 's');
+    });
+
+    const staffVariantEditorCatalog = JSON.parse(
+        document.getElementById('staff-variant-editor-catalog').textContent
+    );
+    const staffVariantsByProduct = new Map(
+        staffVariantEditorCatalog.map(function (product) {
+            return [String(product.id), product.variants];
+        })
+    );
+
+    document.querySelectorAll('.staff-variant-editor').forEach(function (form) {
+        const variants = staffVariantsByProduct.get(form.dataset.productId) || [];
+        const size = form.querySelector('[data-variant-size]');
+        const color = form.querySelector('[data-variant-color]');
+        const variantId = form.querySelector('[data-variant-id]');
+        const error = form.querySelector('[data-variant-error]');
+        const saveButton = form.querySelector('[data-variant-save]');
+
+        function selectVariant() {
+            const variant = variants.find(function (option) {
+                return option.size === size.value && option.color === color.value;
+            });
+            error.hidden = Boolean(variant);
+            saveButton.disabled = !variant;
+            if (!variant) return;
+
+            variantId.value = variant.id;
+        }
+
+        size.addEventListener('change', selectVariant);
+        color.addEventListener('change', selectVariant);
+    });
+</script>
+{% endblock %}

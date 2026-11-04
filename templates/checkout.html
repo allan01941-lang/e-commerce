@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Checkout | BDBazaar{% endblock %}
+{% block body_class %}checkout-body{% endblock %}
+
+{% block content %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const summary = document.querySelector('.checkout-summary');
+        let subtotal = Number((summary?.dataset.subtotal || '0').replace(/[^0-9.]/g, '')) || 0;
+        let freeShippingEnabled = summary?.dataset.freeShipping === 'true';
+        let rates = {
+            inside_dhaka: Number((summary?.dataset.rateInsideDhaka || '0').replace(/[^0-9.]/g, '')) || 0,
+            outside_dhaka: Number((summary?.dataset.rateOutsideDhaka || '0').replace(/[^0-9.]/g, '')) || 0,
+        };
+        const subtotalEl = document.getElementById('checkout-subtotal');
+        const shippingEl = document.getElementById('checkout-shipping');
+        const totalEl = document.getElementById('checkout-total');
+        function formatMoney(value) {
+            return '৳' + Number(value).toFixed(2);
+        }
+
+        function updateSummary() {
+            if (!summary || !shippingEl || !totalEl) return;
+            const selected = document.querySelector('input[name="delivery_area"]:checked');
+            const selectedArea = selected ? selected.value : 'inside_dhaka';
+            const shipping = freeShippingEnabled ? 0 : (rates[selectedArea] || 0);
+            const total = subtotal + shipping;
+            if (subtotalEl) subtotalEl.textContent = formatMoney(subtotal);
+            shippingEl.textContent = formatMoney(shipping);
+            totalEl.textContent = formatMoney(total);
+        }
+
+        document.querySelectorAll('input[name="delivery_area"]').forEach(function (input) {
+            input.addEventListener('change', updateSummary);
+        });
+
+        document.querySelectorAll('.inline-qty-form').forEach(function (form) {
+            const input = form.querySelector('input[name="quantity"]');
+            const row = form.closest('.checkout-item-row');
+            const lineTotalEl = row?.querySelector('.checkout-line-total');
+            const cartKey = form.querySelector('input[name="cart_key"]')?.value;
+            const checkoutProduct = Array.from(document.querySelectorAll('.checkout-product'))
+                .find(function (product) {
+                    return product.dataset.cartKey === cartKey;
+                });
+            const checkoutProductPrice = checkoutProduct?.querySelector('.checkout-product-price');
+            let debounceTimer;
+
+            function saveQuantity() {
+                const quantity = Number.parseInt(input.value, 10);
+                if (!Number.isInteger(quantity) || quantity < 1) return;
+
+                const formData = new FormData(form);
+                const selectedArea = document.querySelector('input[name="delivery_area"]:checked');
+                formData.set('delivery_area', selectedArea ? selectedArea.value : 'inside_dhaka');
+                input.disabled = true;
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {'X-Requested-With': 'XMLHttpRequest'},
+                    credentials: 'same-origin'
+                })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.error || 'Could not update quantity.');
+                        return data;
+                    });
+                })
+                .then(function (data) {
+                    subtotal = Number(data.subtotal);
+                    freeShippingEnabled = data.free_shipping_applies;
+                    rates = Object.fromEntries(
+                        Object.entries(data.shipping_rates).map(function ([area, rate]) {
+                            return [area, Number(rate)];
+                        })
+                    );
+                    if (lineTotalEl) lineTotalEl.textContent = formatMoney(data.line_total);
+                    if (checkoutProductPrice) checkoutProductPrice.textContent = formatMoney(data.line_total);
+                    summary.dataset.subtotal = data.subtotal;
+                    summary.dataset.freeShipping = data.free_shipping_applies ? 'true' : 'false';
+                    summary.dataset.rateInsideDhaka = data.shipping_rates.inside_dhaka;
+                    summary.dataset.rateOutsideDhaka = data.shipping_rates.outside_dhaka;
+                    updateSummary();
+                })
+                .catch(function (error) {
+                    window.alert(error.message);
+                })
+                .finally(function () {
+                    input.disabled = false;
+                });
+            }
+
+            input.addEventListener('input', function () {
+                window.clearTimeout(debounceTimer);
+                debounceTimer = window.setTimeout(saveQuantity, 300);
+            });
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                window.clearTimeout(debounceTimer);
+                saveQuantity();
+            });
+        });
+
+        updateSummary();
+    });
+</script>
+<section class="section checkout-page">
+    <div class="container checkout-layout">
+        <div class="checkout-form-panel">
+            <div class="checkout-products" aria-label="Products in your order">
+                {% for item in items %}
+                    {% with product_image=item.product.images.all|first %}
+                    <div class="checkout-product" data-cart-key="{{ item.cart_key }}">
+                        {% if product_image %}
+                            <img src="{{ product_image.image.url }}" alt="{{ item.product.name }}" class="checkout-product-image">
+                        {% else %}
+                            <img src="{% static 'images/product-placeholder.svg' %}" alt="No image available for {{ item.product.name }}" class="checkout-product-image">
+                        {% endif %}
+                        <div class="checkout-product-info">
+                            <strong>{{ item.product.name }}</strong>
+                            <span class="checkout-product-price">৳{{ item.line_total }}</span>
+                        </div>
+                    </div>
+                    {% endwith %}
+                {% endfor %}
+            </div>
+            <h5 class="text-center">অর্ডারটি কনফার্ম করতে আপনার নাম, মোবাইল নাম্বার, ঠিকানা, থানা,জেলা লিখে অর্ডার বাটনে ক্লিক করুন</h5>
+            <hr>
+
+            <form method="post" class="checkout-form" id="checkout-form">
+                {% csrf_token %}
+                {{ form.payment_method.as_hidden }}
+                <p class="checkout-payment-method">Payment method: <strong>Cash on Delivery (COD)</strong></p>
+                {% if form.non_field_errors %}
+                    <div class="form-errors" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="form-grid">
+                    <div>   
+                        <label for="id_full_name">নাম</label>
+                        {{ form.full_name }}
+                    </div>
+                    <div>
+                        <label for="id_phone">মোবাইল নাম্বার</label>
+                        {{ form.phone }}
+                    </div>
+                    <div>
+                        <label for="id_email">Email (optional)</label>
+                        {{ form.email }}
+                    </div>
+
+                    <div class="full-width">
+                        <label for="id_address">ঠিকানা</label>
+                        {{ form.address }}
+                    </div>
+                    <div>
+                        <label for="id_thana">থানা</label>
+                        {{ form.thana }}
+                    </div>
+                    <div>
+                        <label for="id_zilla">জেলা</label>
+                        {{ form.zilla }}
+                    </div>
+                    <div class="full-width">
+                        <label>Delivery area</label>
+                        <div class="payment-options">
+                            {{ form.delivery_area }}
+                        </div>
+                    </div>
+                    <div class="full-width">
+                        <label for="id_note">বিশেষ নির্দেশাবলি</label>
+                        {{ form.note }}
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">অর্ডার করুন</button>
+            </form>
+        </div>
+
+        <aside class="checkout-summary" data-subtotal="{{ subtotal }}" data-free-shipping="{{ free_shipping_applies|yesno:'true,false' }}" data-rate-inside-dhaka="{{ shipping_rates.inside_dhaka }}" data-rate-outside-dhaka="{{ shipping_rates.outside_dhaka }}">
+            <h3>Order summary</h3>
+            {% for item in items %}
+            <div class="mini-order-item checkout-item-row">
+                {% with product_image=item.product.images.all|first %}
+                <div class="checkout-item-info">
+                    {% if product_image %}
+                    <img src="{{ product_image.image.url }}" alt="{{ item.product.name }}" class="checkout-summary-thumbnail">
+                    {% else %}
+                    <img src="{% static 'images/product-placeholder.svg' %}" alt="No image available for {{ item.product.name }}" class="checkout-summary-thumbnail">
+                    {% endif %}
+                    <div class="checkout-item-details">
+                        <strong>{{ item.product.name }}</strong>
+                        <small>{{ item.quantity }} x ৳{{ item.unit_price }} | {% if item.selected_size %}Size: {{ item.selected_size }}{% endif %} | {% if item.selected_color %} Color: {{ item.selected_color }}{% endif %}</small>
+                        {% if item.product.free_shipping %}<small class="free-shipping-badge">Free shipping</small>{% endif %}
+                    </div>
+                </div>
+                {% endwith %}
+                <div class="checkout-item-qty-actions">
+                    <form method="post" action="{% url 'update_cart' item.product.slug %}" class="inline-qty-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="cart_key" value="{{ item.cart_key }}">
+                        <input type="hidden" name="selected_size" value="{{ item.selected_size }}">
+                        <input type="hidden" name="selected_color" value="{{ item.selected_color }}">
+                        <label class="visually-hidden" for="checkout-qty-{{ forloop.counter }}">Quantity</label>
+                        <input id="checkout-qty-{{ forloop.counter }}" type="number" name="quantity" min="1" max="{{ item.available_quantity }}" value="{{ item.quantity }}" aria-label="Quantity for {{ item.product.name }}">
+                    </form>
+                    <form method="post" action="{% url 'remove_from_cart' item.product.slug %}" class="inline-remove-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="cart_key" value="{{ item.cart_key }}">
+                        <button type="submit" class="btn btn-light compact-btn">Remove</button>
+                    </form>
+                </div>
+                <span class="checkout-line-total">৳{{ item.line_total }}</span>
+            </div>
+            {% endfor %}
+            <div class="summary-row">
+                <span>Subtotal</span>
+                <strong id="checkout-subtotal">৳{{ subtotal }}</strong>
+            </div>
+            <div class="summary-row">
+                <span>Shipping</span>
+                <strong id="checkout-shipping">৳{{ shipping_charge }}</strong>
+            </div>
+            <div class="summary-row total-row">
+                <span>Total</span>
+                <strong id="checkout-total">৳{{ total }}</strong>
+            </div>
+        </aside>
+    </div>
+</section>
+{% endblock %}

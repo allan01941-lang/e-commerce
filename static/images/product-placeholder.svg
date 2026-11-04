@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+  <rect width="600" height="600" rx="32" fill="#F3F6FB"/>
+  <circle cx="300" cy="270" r="108" fill="#E3EAF5"/>
+  <path d="M251 268h98l-9-38h-80l-9 38Z" stroke="#8A9AB3" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M240 268h120l-13 112h-94l-13-112Z" fill="#F8FAFD" stroke="#8A9AB3" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M278 305h44" stroke="#B1BDCE" stroke-width="12" stroke-linecap="round"/>
+  <text x="300" y="445" fill="#64748B" font-family="Arial, sans-serif" font-size="24" font-weight="600" text-anchor="middle">Product image</text>
+</svg>

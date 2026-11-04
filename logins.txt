@@ -1,0 +1,12 @@
+admin----1234
+sharif---Allan236@
+subho----Allan236@
+
+
+Mobile Order View 
+Image, Name 
+Order Total 
+
+
+Patho Api Config to Place to create order 
+Patho API to Reconcile Sales amount 

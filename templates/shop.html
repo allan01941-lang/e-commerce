@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="shop-page section">
+    <div class="container">
+        <div class="shop-header">
+            <div>
+                <span class="eyebrow">Explore products</span>
+            </div>
+            <button class="mobile-filter-toggle" type="button" aria-label="Toggle filters">Filters</button>
+        </div>
+
+        <div class="shop-layout">
+            <aside class="filter-panel" id="filterPanel">
+                <form id="shop-filter-form" method="get"
+                      action="{% url 'shop' %}">
+                    <div class="filter-group">
+                        <label for="search">Search</label>
+                        <input id="search" type="search" name="search" value="{{ search_term }}" placeholder="Search products">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="category">Category</label>
+                        <select id="category" name="category">
+                            <option value="" {% if not selected_category %}selected{% endif %}>All categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.slug }}" {% if selected_category == category.slug %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group two-col">
+                        <div>
+                            <label for="min_price">Min price</label>
+                            <input id="min_price" type="number" name="min_price" value="{{ price_min }}" min="0" placeholder="0">
+                        </div>
+                        <div>
+                            <label for="max_price">Max price</label>
+                            <input id="max_price" type="number" name="max_price" value="{{ price_max }}" min="0" placeholder="20000">
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="size">Size</label>
+                        <select id="size" name="size">
+                            <option value="">All sizes</option>
+                            {% for size in available_sizes %}
+                            <option value="{{ size }}" {% if selected_size == size %}selected{% endif %}>{{ size }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="color">Color</label>
+                        <select id="color" name="color">
+                            <option value="">All colors</option>
+                            {% for color in available_colors %}
+                            <option value="{{ color }}" {% if selected_color == color %}selected{% endif %}>{{ color }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group checkbox-row">
+                        <label class="check-option compact-check">
+                            <input type="checkbox" name="in_stock" {% if in_stock_only %}checked{% endif %}>
+                            <span>In stock only</span>
+                        </label>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="sort">Sort by</label>
+                        <select id="sort" name="sort">
+                            <option value="newest" {% if sort_option == 'newest' %}selected{% endif %}>Newest</option>
+                            <option value="price_asc" {% if sort_option == 'price_asc' %}selected{% endif %}>Price: low to high</option>
+                            <option value="price_desc" {% if sort_option == 'price_desc' %}selected{% endif %}>Price: high to low</option>
+                            <option value="most_selling" {% if sort_option == 'most_selling' %}selected{% endif %}>Most selling</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-actions">
+                        <a href="{% url 'shop' %}" class="btn btn-secondary">Reset</a>
+                    </div>
+                </form>
+            </aside>
+
+            <div class="shop-results" id="shop-results">
+                {% include 'shop/partials/product_grid.html' %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('shop-filter-form');
+        const toggleButton = document.querySelector('.mobile-filter-toggle');
+        const filterPanel = document.getElementById('filterPanel');
+
+        function trackShopPageView() {
+            if (typeof window.gtag === 'function') {
+                window.gtag('event', 'page_view', {
+                    page_location: window.location.href,
+                    page_path: window.location.pathname + window.location.search,
+                    page_title: document.title
+                });
+            }
+            if (typeof window.fbq === 'function') {
+                window.fbq('track', 'PageView');
+            }
+        }
+
+        if (toggleButton && filterPanel) {
+            toggleButton.addEventListener('click', function () {
+                filterPanel.classList.toggle('open');
+            });
+        }
+
+        if (!form) return;
+
+        const submitFilters = function () {
+            const params = new URLSearchParams(new FormData(form));
+            const queryString = params.toString();
+            const url = form.action + (queryString ? ('?' + queryString) : '');
+
+            if (window.history.pushState) {
+                window.history.pushState({}, '', url);
+            }
+
+            const results = document.getElementById('shop-results');
+            if (!results) return;
+
+            fetch(url, {
+                headers: {
+                    'HX-Request': 'true',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Request failed.');
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                results.innerHTML = html;
+                trackShopPageView();
+            })
+            .catch(function () {
+                window.location.href = url;
+            });
+        };
+
+        const results = document.getElementById('shop-results');
+        if (results) {
+            results.addEventListener('click', function (event) {
+                const link = event.target.closest('a[data-shop-page]');
+                if (
+                    !link ||
+                    event.defaultPrevented ||
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                ) {
+                    return;
+                }
+
+                event.preventDefault();
+                const url = link.href;
+                fetch(url, {
+                    headers: {
+                        'HX-Request': 'true',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('Product page request failed.');
+                    }
+                    return response.text();
+                })
+                .then(function (html) {
+                    results.innerHTML = html;
+                    window.history.pushState({}, '', url);
+                    trackShopPageView();
+                })
+                .catch(function () {
+                    window.location.href = url;
+                });
+            });
+        }
+
+        window.addEventListener('popstate', function () {
+            window.location.reload();
+        });
+
+        let debounceTimer;
+        form.querySelectorAll('input, select').forEach(function (field) {
+            field.addEventListener('input', function () {
+                window.clearTimeout(debounceTimer);
+                debounceTimer = window.setTimeout(submitFilters, 250);
+            });
+            field.addEventListener('change', submitFilters);
+        });
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            submitFilters();
+        });
+    });
+</script>
+{% endblock %}
